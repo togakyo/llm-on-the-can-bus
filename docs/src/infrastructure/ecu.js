@@ -1,11 +1,13 @@
-// ecu.js — アンビエント照明ECU（アクチュエータ）のモデル
+// infrastructure/ecu.js — アンビエント照明ECU（アクチュエータ）のシミュレータ
+//
+// DDD 上はインフラ層（実機では本物のECU/LEDに置き換わる境界）。
 //
 // 検証済みフレームだけを受け取り、各ゾーンの状態を保持する。
 // HMI は effectiveColor() を毎フレーム呼んで、時間依存のエフェクトを描画する。
 
 import {
   ZONES, ZONE_BY_CANID, EFFECT, CAN_ID, GLOBAL_CMD, speedToHz,
-} from './signals.js';
+} from '../domain/signals.js';
 
 export class AmbientEcu {
   constructor() {

@@ -1,4 +1,6 @@
-// can.js — 仮想 CAN バス
+// infrastructure/can.js — 仮想 CAN バス（アダプタ）
+//
+// DDD 上はインフラ層。実機では SocketCAN(can0) 等のアダプタに差し替わる。
 //
 // フレームを購読者（ECUモデル / バスモニタ）へ配信するだけの薄い層。
 // 実機では SocketCAN(can0) や python-can に置き換わる想定の抽象化ポイント。

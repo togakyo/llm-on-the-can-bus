@@ -43,7 +43,7 @@ But letting an AI emit arbitrary bytes onto a vehicle bus is dangerous, so this 
 | **Safety supervisor** | Validates / clamps / rejects every frame just before TX | ID allowlist, brightness caps, flash‑rate caps, driving policy, watchdog |
 | **E‑STOP** | Instantly turns all zones off | A guaranteed path back to a safe state |
 
-### Safety policy (implemented in `docs/src/safety.js`)
+### Safety policy (implemented in `docs/src/domain/safety.js`)
 
 Verdicts depend on **vehicle state (speed / gear)**:
 
@@ -55,6 +55,26 @@ Verdicts depend on **vehicle state (speed / gear)**:
 - **Watchdog** — program duration clamped to 30 s; `endState:off` forces an all‑off tail (fail‑safe)
 
 These are covered by unit tests → `test/safety.test.mjs`.
+
+### Architecture — DDD × Physical AI (run-time assurance)
+
+The frontend simulation is organized as a lightweight hexagonal (ports & adapters) DDD stack — plain ES modules, no build step, dependencies point inward only (`infrastructure/ui → application → domain`):
+
+- **`domain/`** — pure functions & aggregates, zero I/O, fully unit-testable in Node.
+  The **core domain is safety supervision** (`safety.js`, versioned *safety envelope*).
+  `LightingProgram` is the aggregate root with an explicit lifecycle
+  (`generated → compiled → approved/rejected → active → completed/aborted`); illegal transitions throw.
+  `normalizeDsl()` acts as the **anti-corruption layer** for untrusted LLM output.
+- **`application/`** — use-case orchestration (`ActuationService`) and the
+  **run-time assurance monitor** (`RuntimeAssuranceMonitor`, a Simplex-style decision module).
+- **`infrastructure/`** — swappable adapters: virtual CAN bus (→ SocketCAN), planners (rule / local LLM), ECU simulator.
+
+**Run-time assurance (Simplex):** reviewing a program once at generation time is not enough for a physical system — the world changes while actuation is in flight. Two additional trusted checkpoints close that gap:
+
+1. **TX gate** — every scheduled frame is re-inspected against the vehicle state *at the moment of transmission* (approved while parked ≠ safe to send while driving).
+2. **Continuous re-assurance** — the monitor senses `VEHICLE_STATE` from the bus and, whenever it changes, re-inspects the lighting state currently latched in the ECU: violations are clamped to a safe value or the zone is turned off (fallback controller).
+
+Every decision (generation, review verdicts, interventions, E-STOP) is published as a **domain event** and recorded in an append-only **safety audit trail** stamped with the safety-envelope version — visible in panel ⑤ of the UI.
 
 ### 🤖 Run a real lightweight model on your own PC
 
@@ -106,15 +126,25 @@ fallback, so the page behaves identically regardless of which one is running on 
 
 ```
 docs/                     GitHub Pages content (served as-is, no build)
-  index.html              cockpit SVG + UI
+  index.html              cockpit SVG + UI (incl. ⑤ RTA + audit-trail panel)
   styles.css              automotive-HMI dark theme
-  src/
-    signals.js            CAN signal catalog (DBC-like): IDs / effects / encode
-    can.js                virtual CAN bus (subscribe / scheduled TX)
-    planner.js            HeuristicPlanner + LlmPlanner + trusted compiler + normalizeDsl
-    safety.js             safety supervisor ★ most safety-critical
-    ecu.js                ambient-lighting ECU (actuator state model)
-    app.js                UI wiring + SVG render loop
+  src/                    DDD layering (plain ES modules; deps point inward)
+    domain/               pure domain layer — no I/O, unit-testable in Node
+      signals.js          CAN signal catalog (DBC-like): IDs / effects / encode
+      program.js          LightingProgram aggregate + DSL contract + ACL (normalizeDsl)
+      compiler.js         trusted compiler: DSL → CAN frames (only place that knows CAN IDs)
+      safety.js           safety supervisor ★ core domain (versioned safety envelope)
+      vehicle.js          VehicleState value object
+      events.js           domain events + in-process event bus
+      audit.js            append-only safety audit trail
+    application/          use-case orchestration
+      actuation-service.js  intent → plan → compile → review → dispatch
+      runtime-monitor.js    run-time assurance (Simplex): TX gate + re-assurance
+    infrastructure/       adapters — swappable for real hardware
+      can.js              virtual CAN bus (→ SocketCAN)
+      planners.js         HeuristicPlanner + LlmPlanner (HTTP :8000)
+      ecu.js              ambient-lighting ECU simulator
+    app.js                composition root + UI wiring + SVG render loop
 backend-rs/                Rust backend (default) — candle-native inference
   src/main.rs             tiny_http server: /plan, /health, CORS
   src/planner_core.rs     prompt / JSON-extract / normalize / rule fallback + tests
@@ -125,7 +155,11 @@ ai/                        Python backend (alternative) — transformers/PyTorch
   planner_core.py         prompt / JSON-extract / normalize / rule fallback (no torch)
   test_planner_core.py    unit tests (no model needed)
   requirements.txt
-test/safety.test.mjs      safety supervisor unit tests
+test/
+  safety.test.mjs         safety supervisor unit tests
+  program.test.mjs        aggregate lifecycle + anti-corruption layer tests
+  runtime-monitor.test.mjs  run-time assurance (Simplex) tests
+  actuation.test.mjs      use-case integration tests (Node-only, no DOM)
 scripts/serve.mjs         zero-dependency local static server
 ```
 
@@ -212,7 +246,7 @@ gh api -X POST repos/togakyo/scratch-car-interior/pages \
 | **安全審査** | 実行直前に全フレームを検証・クランプ・破棄 | ID allowlist / 輝度上限 / 点滅周波数 / 走行中ポリシー / ウォッチドッグ |
 | **E-STOP** | 全ゾーン即時消灯のフェイルセーフ | いつでも安全状態へ復帰可能 |
 
-### 安全審査ポリシー（`docs/src/safety.js` に実装）
+### 安全審査ポリシー（`docs/src/domain/safety.js` に実装）
 
 判定は **車両状態（速度・ギア）** に依存します。
 
@@ -224,6 +258,26 @@ gh api -X POST repos/togakyo/scratch-car-interior/pages \
 - **ウォッチドッグ** — 継続時間を 30s へ **CLAMP**、`endState:off` は末尾に全消灯を強制付与
 
 これらは単体テストで検証しています → `test/safety.test.mjs`
+
+### アーキテクチャ — DDD × Physical AI（実行時保証）
+
+フロントのシミュレーションは軽量なヘキサゴナル（ポート＆アダプタ）型のDDD構成です。ビルド無しの素のES Modulesのまま、依存は内側にのみ向かいます（`infrastructure/ui → application → domain`）。
+
+- **`domain/`** — 純粋関数と集約のみ。I/Oゼロで、Nodeでそのまま単体テスト可能。
+  **コアドメインは安全審査**（`safety.js`、版数つき*セーフティ・エンベロープ*）。
+  `LightingProgram` が集約ルートで、明示的なライフサイクル
+  （`generated → compiled → approved/rejected → active → completed/aborted`）を持ち、不正遷移は例外。
+  `normalizeDsl()` は信頼できないLLM出力に対する**腐敗防止層（ACL）**。
+- **`application/`** — ユースケースの編成（`ActuationService`）と、
+  **実行時保証モニタ**（`RuntimeAssuranceMonitor`＝Simplex型のDecision Module）。
+- **`infrastructure/`** — 差し替え可能なアダプタ: 仮想CANバス（→SocketCAN）、プランナー（ルール/ローカルLLM）、ECUシミュレータ。
+
+**実行時保証（Simplex）:** 物理系では「生成時に一度審査して終わり」では不十分です。実行中にも世界（車両状態）が変わるからです。信頼された検問所を2つ追加しています。
+
+1. **TXゲート** — スケジュール済みフレームを「送信の瞬間」の車両状態で再検査（停車中に承認 ≠ 走行中に送ってよい）。
+2. **継続再保証** — モニタがバスから `VEHICLE_STATE` をセンシングし、変化のたびにECUへラッチ済みの点灯状態を再検査。違反は安全側へclamp、または当該ゾーンを消灯（フォールバック制御）。
+
+生成・審査判定・介入・E-STOPなどすべての意思決定は**ドメインイベント**として発行され、セーフティ・エンベロープの版数つきで追記専用の**監査証跡**に記録されます（UIのパネル⑤で確認可能）。
 
 ### 🤖 軽量モデルを自分のPCで実行する
 
@@ -276,15 +330,25 @@ cargo test                              # planner_core の単体テスト
 
 ```
 docs/                     GitHub Pages 公開物（ビルド不要でそのままホスト）
-  index.html              コックピットSVG + UI
+  index.html              コックピットSVG + UI（⑤ RTA+監査証跡パネルを含む）
   styles.css              車載HMI風ダークテーマ
-  src/
-    signals.js            CANシグナル定義（DBC相当）: ID/エフェクト/エンコード
-    can.js                仮想CANバス（購読・スケジュール送信）
-    planner.js            HeuristicPlanner + LlmPlanner + 信頼コンパイラ + normalizeDsl
-    safety.js             セーフティ・スーパーバイザー ★安全上の要
-    ecu.js                アンビエント照明ECU（アクチュエータ状態モデル）
-    app.js                UI配線 + SVG描画ループ
+  src/                    DDD層構成（素のES Modules・依存は内側のみ）
+    domain/               純粋ドメイン層 — I/Oゼロ、Nodeで単体テスト可能
+      signals.js          CANシグナル定義（DBC相当）: ID/エフェクト/エンコード
+      program.js          LightingProgram集約 + DSL契約 + 腐敗防止層(normalizeDsl)
+      compiler.js         信頼コンパイラ: DSL → CANフレーム（CAN IDを知る唯一の場所）
+      safety.js           セーフティ・スーパーバイザー ★コアドメイン（版数つきエンベロープ）
+      vehicle.js          VehicleState 値オブジェクト
+      events.js           ドメインイベント + インプロセスのイベントバス
+      audit.js            追記専用の安全監査証跡
+    application/          ユースケースの編成
+      actuation-service.js  意図 → 生成 → コンパイル → 審査 → 送出
+      runtime-monitor.js    実行時保証(Simplex): TXゲート + 継続再保証
+    infrastructure/       アダプタ — 実機に差し替わる境界
+      can.js              仮想CANバス（→SocketCAN）
+      planners.js         HeuristicPlanner + LlmPlanner（HTTP :8000）
+      ecu.js              アンビエント照明ECUシミュレータ
+    app.js                合成ルート + UI配線 + SVG描画ループ
 backend-rs/                Rustバックエンド（既定）— candleネイティブ推論
   src/main.rs             tiny_http サーバ: /plan, /health, CORS
   src/planner_core.rs     プロンプト/JSON抽出/正規化/規則フォールバック + テスト
@@ -295,7 +359,11 @@ ai/                        Pythonバックエンド（代替）— transformers/
   planner_core.py         プロンプト/JSON抽出/正規化/規則フォールバック（torch非依存）
   test_planner_core.py    単体テスト（モデル不要）
   requirements.txt
-test/safety.test.mjs      安全審査の単体テスト
+test/
+  safety.test.mjs         安全審査の単体テスト
+  program.test.mjs        集約ライフサイクル + 腐敗防止層のテスト
+  runtime-monitor.test.mjs  実行時保証(Simplex)のテスト
+  actuation.test.mjs      ユースケース結合テスト（DOM不要・Nodeのみ）
 scripts/serve.mjs         依存ゼロのローカル静的サーバ
 ```
 

@@ -5,9 +5,10 @@ import assert from 'node:assert/strict';
 
 import {
   EFFECT, GLOBAL_CMD, CAN_ID, encodeZoneFrame, checksum, speedToHz, hzToSpeed,
-} from '../docs/src/signals.js';
-import { HeuristicPlanner, compile } from '../docs/src/planner.js';
-import { reviewProgram, buildEstopProgram, VERDICT, POLICY } from '../docs/src/safety.js';
+} from '../docs/src/domain/signals.js';
+import { HeuristicPlanner } from '../docs/src/infrastructure/planners.js';
+import { compile } from '../docs/src/domain/compiler.js';
+import { reviewProgram, buildEstopProgram, VERDICT, POLICY } from '../docs/src/domain/safety.js';
 
 const PARKED = { ignition: 1, gear: 0, speedKmh: 0, doors: 0 };
 const DRIVING = { ignition: 1, gear: 3, speedKmh: 60, doors: 0 };

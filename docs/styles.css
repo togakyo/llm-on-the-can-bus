@@ -193,6 +193,25 @@ button.primary:active { transform: translateY(1px); }
 .row-veh { background: #0b1620; }
 .row-veh .bid { color: var(--clamp); }
 
+/* ---- runtime assurance + audit trail ---- */
+.rta-status {
+  font-size: 12.5px; font-weight: 700; padding: 6px 10px; border-radius: 8px; margin-bottom: 8px;
+}
+.rta-nominal { color: var(--pass); background: #0b1a13; border: 1px solid #14402a; }
+.rta-intervened { color: var(--clamp); background: #211607; border: 1px solid #4d3410; }
+.audit-log {
+  font-family: "SF Mono", ui-monospace, monospace; font-size: 11px;
+  max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px;
+}
+.arow { display: grid; grid-template-columns: 96px 150px 150px 1fr; gap: 8px; padding: 3px 8px; border-radius: 6px; background: #080b11; }
+.arow .at { color: var(--muted); }
+.arow .aev { color: var(--accent); }
+.arow .apid { color: var(--muted); }
+.arow .adet { color: #b9c6dc; }
+.arow-alert { background: #2a1015; }
+.arow-alert .aev { color: var(--reject); }
+.arow-review { background: #0b1620; }
+
 /* ---- footer ---- */
 .foot {
   display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap;

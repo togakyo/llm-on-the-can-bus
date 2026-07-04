@@ -1,9 +1,12 @@
-// safety.js — セーフティ・スーパーバイザー（安全審査層）
+// domain/safety.js — セーフティ・スーパーバイザー（コアドメイン）
 //
+// このプロジェクトの価値の中核＝「AI生成コードを安全に実行させる審査」。
 // コンパイル済み CAN フレーム列を「実バスへ流す前に」1フレームずつ検査する。
 // 判定は pass / clamp（値を安全側へ丸めて通す）/ reject（破棄）の3種。
 // 判定は車両状態(停車/走行/ギア/ドア)に依存する ＝ 状況認識のある安全制御。
 //
+// 純粋関数のみ（I/Oなし）。実行時の継続監視は application/runtime-monitor.js が
+// この inspectFrame() を再利用して行う（Simplex / Run-Time Assurance 構成）。
 // この層はデモの中で最も安全上重要なので、Nodeの単体テスト対象にしている。
 
 import {
@@ -12,7 +15,13 @@ import {
   clampByte, idToHex,
 } from './signals.js';
 
+// セーフティ・エンベロープ（安全制約の集合）。
+// 「どのバージョンの制約で審査したか」を監査証跡へ残すため版数を持つ。
+// 制約を変更したら必ず version を上げること。
+export const SAFETY_ENVELOPE_VERSION = '1.1.0';
+
 export const POLICY = {
+  version: SAFETY_ENVELOPE_VERSION,
   drivingSpeedKmh: 5,        // これを超えたら「走行中」扱い
   maxFlashHz: 5,            // 常時: 光過敏対策の上限周波数
   maxFlashHzDriving: 3,    // 走行中: さらに厳しく
