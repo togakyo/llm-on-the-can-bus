@@ -1,5 +1,8 @@
 # CAN-AI Actuator Lab 🚘💡
 
+[![CI](https://github.com/togakyo/scratch-car-interior/actions/workflows/ci.yml/badge.svg)](https://github.com/togakyo/scratch-car-interior/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 **An AI writes a fresh "CAN control program" on every request → it passes a safety review → it drives the car's ambient‑lighting actuators.**
 
 **AIが毎回「CAN制御プログラム」を生成 → 安全審査を通過 → 車内アンビエント照明アクチュエータを制御する。**

@@ -1,0 +1,39 @@
+# CI — 3層すべての単体テストを回す（どれも ML 依存なしの軽量ジョブ）
+#   node:   ドメイン/アプリケーション層 + Unityブリッジプロトコル（node --test）
+#   python: プランナーコア（torch 非依存、stdlib のみ）
+#   rust:   バックエンドのプランナーコア（default features = ML 依存なし）
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  node:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
+
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m unittest discover -s ai -q
+
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend-rs
+      - run: cargo test --manifest-path backend-rs/Cargo.toml
