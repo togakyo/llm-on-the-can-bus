@@ -1,0 +1,11 @@
+{
+  "name": "can-ai-actuator-lab",
+  "version": "0.1.0",
+  "description": "AIが車載CAN制御プログラムを生成し、安全審査を通してアンビエント照明アクチュエータを制御するデモ",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test",
+    "serve": "node scripts/serve.mjs"
+  }
+}
