@@ -2,6 +2,7 @@
 name = "planner-server"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
 description = "AIプランナーのRustバックエンド（意図→照明DSL）。フロントの /plan・/health をドロップイン置換"
 
 [[bin]]

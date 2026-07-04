@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "AIが車載CAN制御プログラムを生成し、安全審査を通してアンビエント照明アクチュエータを制御するデモ",
   "type": "module",
+  "license": "MIT",
   "private": true,
   "scripts": {
     "test": "node --test",
