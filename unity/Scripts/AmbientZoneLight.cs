@@ -33,6 +33,13 @@ namespace CanAiActuatorLab
         private int _zoneIndex;    // WIPE / RAINBOW の位相オフセット（welcome の並び順）
         private MaterialPropertyBlock _mpb;
 
+        // リグ等がコードから出力先を割り当てるための入口（Start より前に呼ぶこと）
+        public void SetOutputs(Light light, Renderer renderer)
+        {
+            zoneLight = light;
+            emissiveRenderer = renderer;
+        }
+
         private void Start()
         {
             if (bridge == null) bridge = FindObjectOfType<CanBridgeClient>();

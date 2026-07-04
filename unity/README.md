@@ -34,7 +34,8 @@ run-time assurance monitor clamp or kill it in real time.
    - `CanBridgeClient` — 接続先（既定 127.0.0.1:9200）
    - `BridgeDebugHud` — 意図入力・E-STOP・監査ログの HUD
    - `VehicleStateReporter` — 速度/ギア/ドアの返送（簡易運転キー付き）
-   - `ZonePlaceholderRig` — 7ゾーン分の発光球を自動生成（車モデルなしで絵が出る）
+   - `CabinMockRig` — プリミティブ製の簡易車内 + 7ゾーンの LEDストリップを自動生成
+     （最小限の発光球だけでよければ代わりに `ZonePlaceholderRig`）
 4. **Play** を押し、HUD に「● ブリッジ接続中」と出たら意図を入力して **生成**。
 
 ### 試すシナリオ / Things to try
@@ -58,6 +59,19 @@ run-time assurance monitor clamp or kill it in real time.
    マテリアル）を `emissiveRenderer` に割り当てる。両方使うとそれらしくなる。
 4. 運転できる車両コントローラがある場合は `VehicleStateReporter` の `keyboardControl` を
    切り、毎フレーム `speedKmh` / `gear` / `doorOpen` を書き込むだけでよい。
+
+## デモGIFの録画 / Recording a demo GIF
+
+README・SNS 用の素材はメニューから無人で録画できます:
+
+1. メニュー **CAN-AI → Set Up Demo Recording**（`DemoDirector` が追加される）
+2. Game ビューの解像度をドロップダウンで **1280x720** 等に固定
+3. `npm run bridge` を起動して **Play** — 16秒のシナリオ
+   （停車点灯 → 加速 → 走行中の赤点滅が **REJECT** → 白点滅が **CLAMP**）が自動進行し、
+   `unity/Playground/Recordings/` に連番 PNG が書き出される
+4. リポジトリ直下で `scripts/make-demo-gif.sh` を実行 → `docs/assets/demo-unity.gif`
+
+シナリオだけ流して録画しない場合は `DemoDirector` の `record` を外す。
 
 ## Local LLM mode / ローカルAIモード
 

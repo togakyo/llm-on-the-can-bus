@@ -19,19 +19,41 @@ namespace CanAiActuatorLab
         {
             ApplyEnvironment();
 
-            if (Object.FindObjectOfType<CanBridgeClient>() == null)
+            var client = Object.FindObjectOfType<CanBridgeClient>();
+            var go = client != null ? client.gameObject : new GameObject("CanBridge");
+            if (client == null)
             {
-                var go = new GameObject("CanBridge");
                 go.AddComponent<CanBridgeClient>();
-                go.AddComponent<BridgeDebugHud>();
-                go.AddComponent<VehicleStateReporter>();
-                go.AddComponent<ZonePlaceholderRig>();
                 Undo.RegisterCreatedObjectUndo(go, "Set Up CAN-AI Debug Scene");
             }
+            Ensure<BridgeDebugHud>(go);
+            Ensure<VehicleStateReporter>(go);
+
+            // 車内リグ: 旧プレースホルダー（球のみ）は CabinMockRig に置き換える
+            var placeholder = go.GetComponent<ZonePlaceholderRig>();
+            if (placeholder != null) Undo.DestroyObjectImmediate(placeholder);
+            Ensure<CabinMockRig>(go);
 
             EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
             Debug.Log("CAN-AI: セットアップ完了。`npm run bridge` を起動して Play してください" +
-                      "（発光ゾーンは Play 時に生成されます）");
+                      "（車内モックと発光ゾーンは Play 時に生成されます）");
+        }
+
+        // プロモ/README 用: 自動デモ進行 + フレーム録画（DemoDirector）を追加する
+        [MenuItem("CAN-AI/Set Up Demo Recording")]
+        public static void SetUpDemoRecording()
+        {
+            SetUp();
+            var go = Object.FindObjectOfType<CanBridgeClient>().gameObject;
+            Ensure<DemoDirector>(go);
+            EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+            Debug.Log("CAN-AI: 録画準備完了。Game ビューの解像度を 1280x720 等に固定し、" +
+                      "`npm run bridge` を起動してから Play すると Recordings/ に連番PNGが出ます");
+        }
+
+        private static void Ensure<T>(GameObject go) where T : Component
+        {
+            if (go.GetComponent<T>() == null) Undo.AddComponent<T>(go);
         }
 
         // 環境光とカメラは再実行時も毎回適用する（設定調整をメニューで反映できるように）

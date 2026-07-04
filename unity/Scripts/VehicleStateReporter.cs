@@ -22,7 +22,7 @@ namespace CanAiActuatorLab
         public bool doorOpen;
 
         [Header("簡易運転キー: ↑/↓=加減速, G=ギア切替, O=ドア開閉")]
-        [SerializeField] private bool keyboardControl = true;
+        public bool keyboardControl = true; // DemoDirector 等が外から無効化できるよう public
         [SerializeField] private float accelKmhPerSec = 25f;
         [SerializeField] private float brakeKmhPerSec = 50f;
 
