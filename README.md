@@ -103,9 +103,27 @@ npm run serve        # → http://localhost:8080
 npm test             # node --test（安全審査の単体テスト）
 ```
 
-### GitHub Pages
-`docs/` フォルダがそのまま公開物です。Settings → Pages → `main` / `docs` で公開。
-（`.nojekyll` 済みなので `src/` の ES Modules がそのまま配信されます。）
+### GitHub Pages で公開する
+
+`docs/` フォルダがそのまま公開物です（ビルド不要・`.nojekyll` 済みなので `src/` の ES Modules がそのまま配信されます）。
+
+**⚠️ このリポジトリのデフォルトブランチは `master` です（`main` ではありません）。** 以下の手順で有効化してください。
+
+1. リポジトリを push する（`git push origin master`）
+2. GitHub の **Settings → Pages** を開く
+3. **Build and deployment → Source** を **Deploy from a branch** にする
+4. **Branch** で **`master`** を選び、フォルダを **`/docs`** にして **Save**
+5. 1〜2分待つと `https://togakyo.github.io/scratch-car-interior/` で公開される
+
+> `main` ブランチは存在しないため、`main / docs` を選ぶと何も公開されません。必ず **`master`** を選択してください。
+
+CLI で有効化する場合（`gh auth login` 済みなら）:
+```bash
+gh api -X POST repos/togakyo/scratch-car-interior/pages \
+  -f 'source[branch]=master' -f 'source[path]=/docs'
+# 設定確認・URL取得
+gh api repos/togakyo/scratch-car-interior/pages --jq '.html_url, .status'
+```
 
 ---
 
