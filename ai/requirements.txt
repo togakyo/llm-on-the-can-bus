@@ -1,0 +1,7 @@
+# ローカルAIプランナー用（自分のPCで軽量HFモデルを実行）
+# CPUのみでも動作。GPU(CUDA)/Apple Silicon(MPS)があれば自動利用。
+transformers>=4.44
+torch>=2.2
+huggingface_hub>=0.24
+# Qwen トークナイザに必要なことがある
+sentencepiece>=0.1.99

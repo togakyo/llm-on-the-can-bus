@@ -5,7 +5,7 @@
 //          → AmbientEcu が状態更新 → SVGゾーンを毎フレーム描画
 
 import { VirtualCanBus, scheduleProgram } from './can.js';
-import { HeuristicPlanner, compile, PRESETS } from './planner.js';
+import { HeuristicPlanner, LlmPlanner, compile, normalizeDsl, PRESETS } from './planner.js';
 import { reviewProgram, buildEstopProgram, VERDICT, effectLabel } from './safety.js';
 import { AmbientEcu } from './ecu.js';
 import {
@@ -17,7 +17,9 @@ const $ = (s) => document.querySelector(s);
 
 const bus = new VirtualCanBus();
 const ecu = new AmbientEcu();
-const planner = new HeuristicPlanner();
+const heuristic = new HeuristicPlanner();
+const llm = new LlmPlanner('http://localhost:8000');
+let mode = 'heuristic'; // 'heuristic' | 'llm'
 
 let vehicle = { ignition: 1, gear: GEAR.P, speedKmh: 0, doors: 0 };
 let cancelRun = null;
@@ -46,9 +48,23 @@ function setSpeed(kmh) {
 async function runIntent(intent) {
   if (cancelRun) { cancelRun(); cancelRun = null; }
 
-  // ② AI生成 DSL
-  const dsl = await planner.generate(intent);
-  renderDsl(dsl);
+  // ② DSL生成。モデルは信頼しないので、出力は必ず normalizeDsl() で矯正する。
+  let rawDsl;
+  let source;
+  if (mode === 'llm') {
+    try {
+      rawDsl = await llm.generate(intent);
+      source = `ローカルAI · ${llm.lastModel ?? 'HF model'}${llm.lastSource === 'fallback' ? '（サーバ側fallback）' : ''}`;
+    } catch (e) {
+      rawDsl = await heuristic.generate(intent);
+      source = 'ルール（ローカルAI未接続のためフォールバック）';
+    }
+  } else {
+    rawDsl = await heuristic.generate(intent);
+    source = 'ルール（オフライン）';
+  }
+  const dsl = normalizeDsl(rawDsl);
+  renderDsl(dsl, source);
 
   // コンパイル（信頼された変換: ここだけがCAN IDを知る）
   const compiled = compile(dsl);
@@ -70,7 +86,9 @@ function emergencyStop() {
 }
 
 // ---- レンダリング: DSL / frames / safety / bus --------------------------
-function renderDsl(dsl) {
+function renderDsl(dsl, source) {
+  const src = $('#dsl-source');
+  if (src) src.textContent = source ? `生成元: ${source}` : '';
   $('#dsl-out').textContent = JSON.stringify(dsl, null, 2);
 }
 
@@ -183,6 +201,28 @@ $('#intent').addEventListener('keydown', (e) => {
 });
 $('#estop').addEventListener('click', emergencyStop);
 $('#speed').addEventListener('input', (e) => setSpeed(+e.target.value));
+
+// プランナーのモード切替（ルール / ローカルAI）
+for (const radio of document.querySelectorAll('input[name="mode"]')) {
+  radio.addEventListener('change', async (e) => {
+    mode = e.target.value;
+    const note = $('#mode-note');
+    if (mode === 'llm') {
+      note.textContent = '接続確認中…';
+      try {
+        const h = await llm.health();
+        note.textContent = `✅ 接続OK: ${h.model ?? 'model'}（${h.device ?? 'cpu'}）`;
+        note.className = 'mode-note ok';
+      } catch {
+        note.textContent = '⚠️ localhost:8000 に未接続。ai/planner_server.py を起動してください（未接続時はルールにフォールバック）';
+        note.className = 'mode-note warn';
+      }
+    } else {
+      note.textContent = '';
+      note.className = 'mode-note';
+    }
+  });
+}
 
 buildPresets();
 setSpeed(0);

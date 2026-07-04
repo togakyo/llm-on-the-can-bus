@@ -126,12 +126,19 @@
       <div class="panel intent-panel">
         <h2>① 意図を入力</h2>
         <textarea id="intent" rows="2" placeholder="例）ドアを開けたら足元とドアを白くゆっくり点灯"></textarea>
+        <div class="mode-select">
+          <span class="mode-label">プランナー:</span>
+          <label><input type="radio" name="mode" value="heuristic" checked /> ルール（オフライン）</label>
+          <label><input type="radio" name="mode" value="llm" /> ローカルAI（HF Qwen2.5-0.5B @ localhost:8000）</label>
+        </div>
+        <div id="mode-note" class="mode-note"></div>
         <div id="presets" class="presets"></div>
         <button id="generate" class="primary">⚡ AIで制御プログラムを生成</button>
       </div>
 
       <div class="panel code-panel">
         <h2>② AIが生成したDSL <small>（CAN IDは書けない=構造的サンドボックス）</small></h2>
+        <div id="dsl-source" class="dsl-source"></div>
         <pre id="dsl-out" class="code"><span class="muted">未生成</span></pre>
         <h3>コンパイル結果（CANフレーム）</h3>
         <pre id="frames-out" class="code small"><span class="muted">—</span></pre>

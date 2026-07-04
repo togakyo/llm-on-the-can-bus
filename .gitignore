@@ -2,6 +2,12 @@
 node_modules/
 npm-debug.log*
 
+# Python (ローカルAIサーバ)
+__pycache__/
+*.pyc
+.venv/
+venv/
+
 # Editor / OS
 *.iml
 .idea/

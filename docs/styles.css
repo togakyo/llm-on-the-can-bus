@@ -140,6 +140,18 @@ button.primary {
 }
 button.primary:active { transform: translateY(1px); }
 
+.mode-select {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
+  margin: 10px 0 4px; font-size: 12px;
+}
+.mode-select label { display: inline-flex; align-items: center; gap: 5px; color: var(--text); cursor: pointer; }
+.mode-select input { accent-color: var(--accent); }
+.mode-label { color: var(--muted); }
+.mode-note { font-size: 11.5px; min-height: 16px; color: var(--muted); }
+.mode-note.ok { color: var(--pass); }
+.mode-note.warn { color: var(--clamp); }
+.dsl-source { font-size: 11.5px; color: var(--accent); margin-bottom: 6px; min-height: 15px; }
+
 /* ---- code panels ---- */
 .code {
   font-family: "SF Mono", "Cascadia Code", ui-monospace, monospace;

@@ -93,6 +93,96 @@ export const PRESETS = [
   { key: 'charge',  label: '🔋 充電中',         intent: 'コンソールを緑でパルス' },
 ];
 
+// ---- LlmPlanner: 自分のPCで動く軽量HFモデルに DSL を書かせる -------------
+// ローカルのPythonサーバ(ai/planner_server.py)へ意図を投げ、DSLを受け取る。
+// モデルは信頼しない: 返ってきたDSLは必ず normalizeDsl() → compile() →
+// 安全審査 を通るため、出力が多少崩れていても安全側に丸められる。
+export class LlmPlanner {
+  constructor(endpoint = 'http://localhost:8000') {
+    this.endpoint = endpoint;
+    this.lastSource = null; // 'llm' | 'fallback'
+    this.lastModel = null;
+  }
+
+  async health() {
+    const res = await fetch(`${this.endpoint}/health`, { method: 'GET' });
+    if (!res.ok) throw new Error(`health ${res.status}`);
+    return res.json();
+  }
+
+  async generate(intent) {
+    const res = await fetch(`${this.endpoint}/plan`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ intent }),
+    });
+    if (!res.ok) throw new Error(`plan ${res.status}`);
+    const data = await res.json();
+    this.lastSource = data.source ?? 'llm';
+    this.lastModel = data.model ?? null;
+    return data.dsl;
+  }
+}
+
+// ---- DSL正規化: 信頼できない入力(LLM出力)を安全な形へ矯正 ----------------
+// 未知ゾーン/範囲外の値/欠損キーを既定値へ丸める。ここで例外を出さないことで
+// 後段のコンパイラ・安全審査が必ず動くようにする（フェイルセーフ）。
+const VALID_EFFECTS = new Set(['static', 'breathe', 'pulse', 'wipe', 'flash', 'rainbow']);
+
+export function normalizeDsl(raw) {
+  const r = raw && typeof raw === 'object' ? raw : {};
+  let actions = Array.isArray(r.actions) ? r.actions.map(normalizeAction).filter(Boolean) : [];
+  if (actions.length === 0) {
+    actions = [{ zones: 'all', color: { r: 255, g: 170, b: 30 }, brightness: 60, effect: 'breathe', hz: 0.5, startMs: 0 }];
+  }
+  const anyFlash = actions.some((a) => a.effect === 'flash');
+  return {
+    title: String(r.title ?? 'ambient').slice(0, 60),
+    rationale: String(r.rationale ?? ''),
+    durationMs: clampInt(r.durationMs, 200, 30000, anyFlash ? 6000 : 12000),
+    endState: r.endState === 'off' ? 'off' : (anyFlash ? 'off' : 'hold'),
+    actions,
+  };
+}
+
+function normalizeAction(a) {
+  if (!a || typeof a !== 'object') return null;
+  let zones;
+  if (a.zones === 'all') zones = 'all';
+  else if (Array.isArray(a.zones)) {
+    zones = a.zones.filter((z) => ZONE_BY_ID[z]);
+    if (zones.length === 0) zones = 'all';
+  } else zones = 'all';
+  return {
+    zones,
+    color: normalizeColorField(a.color),
+    brightness: clampInt(a.brightness, 0, 100, 70),
+    effect: VALID_EFFECTS.has(a.effect) ? a.effect : 'breathe',
+    hz: clampNum(a.hz, 0, 8, 0.5),
+    startMs: clampInt(a.startMs, 0, 30000, 0),
+  };
+}
+
+function normalizeColorField(c) {
+  if (typeof c === 'string') {
+    const rgb = COLORS[c.toLowerCase()] || COLORS[c] || COLORS.amber;
+    return { r: rgb[0], g: rgb[1], b: rgb[2] };
+  }
+  if (c && typeof c === 'object') {
+    return { r: clampInt(c.r, 0, 255, 255), g: clampInt(c.g, 0, 255, 170), b: clampInt(c.b, 0, 255, 30) };
+  }
+  return { r: COLORS.amber[0], g: COLORS.amber[1], b: COLORS.amber[2] };
+}
+
+function clampInt(v, lo, hi, def) {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : def;
+}
+function clampNum(v, lo, hi, def) {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : def;
+}
+
 // ---- Planner インターフェース -------------------------------------------
 export class HeuristicPlanner {
   // 返り値: DSL プログラム(JSON)。async にして LlmPlanner と同一契約。
