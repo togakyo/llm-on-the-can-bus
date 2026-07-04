@@ -7,6 +7,7 @@
   "private": true,
   "scripts": {
     "test": "node --test",
-    "serve": "node scripts/serve.mjs"
+    "serve": "node scripts/serve.mjs",
+    "bridge": "node scripts/unity-bridge.mjs"
   }
 }

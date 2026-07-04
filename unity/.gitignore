@@ -1,0 +1,3 @@
+# Unity プロジェクト実体はコミットしない（配布するのは Scripts/ と ドキュメントのみ）
+# ただし Playground の Assets/Scripts は unity/Scripts のコピーなので丸ごと除外でよい
+Playground/

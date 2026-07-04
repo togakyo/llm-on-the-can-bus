@@ -122,6 +122,21 @@ cargo test                              # planner_core unit tests
 Both backends share the exact same JSON contract, the same DSL normalization, and the same rule‑based
 fallback, so the page behaves identically regardless of which one is running on `:8000`.
 
+### 🎮 Debug from inside a virtual cabin (Unity)
+
+An optional Unity client turns the demo into an **in‑cabin debug environment**: type an intent,
+watch the generated program light up a 3D interior — then start driving and watch the run‑time
+assurance monitor clamp or reject it live, from the driver's seat.
+
+```bash
+npm run bridge   # headless host + UDP bridge on :9200 (the trusted side)
+```
+
+Then drop `unity/Scripts/` into a Unity project (2021.3+) — setup in [`unity/README.md`](unity/README.md),
+wire protocol in [`unity/PROTOCOL.md`](unity/PROTOCOL.md). Unity is just another *untrusted rendering
+adapter*: planning, compilation, safety review and RTA all stay in the Node host, while Unity reports
+vehicle state (speed / gear / doors) back onto the bus as `VEHICLE_STATE`.
+
 ### Project layout
 
 ```
@@ -160,7 +175,13 @@ test/
   program.test.mjs        aggregate lifecycle + anti-corruption layer tests
   runtime-monitor.test.mjs  run-time assurance (Simplex) tests
   actuation.test.mjs      use-case integration tests (Node-only, no DOM)
+  bridge-protocol.test.mjs  Unity bridge message translation tests
+unity/                     Unity in-cabin debug client (C# scripts + docs, no project files)
+  Scripts/*.cs            CanBridgeClient / AmbientZoneLight / VehicleStateReporter / HUD
+  PROTOCOL.md             UDP JSON wire protocol
 scripts/serve.mjs         zero-dependency local static server
+scripts/unity-bridge.mjs   headless host + UDP bridge for the Unity client
+scripts/bridge-protocol.mjs  bridge message translation (pure functions, tested)
 ```
 
 ### CAN signals (a single comfort-domain node only)
@@ -177,6 +198,7 @@ Zones: footwell L/R, door L/R, dashboard, center console, cupholder.
 
 ```bash
 npm run serve   # http://localhost:8080  (static site)
+npm run bridge  # headless host for the Unity client (udp :9200)
 npm test        # node --test (safety supervisor tests)
 cd ai && python -m unittest -q   # planner_core tests
 ```
@@ -326,6 +348,22 @@ cargo test                              # planner_core の単体テスト
 両バックエンドは **同一のJSON契約・同一のDSL正規化・同一の規則フォールバック** を持つため、
 `:8000` でどちらを起動してもページの挙動は同じです。
 
+### 🎮 仮想車内からデバッグする（Unity）
+
+オプションの Unity クライアントで、このデモを**車内視点のデバッグ環境**にできます。
+意図を打ち込むと生成されたプログラムが 3D 車内を照らし、そのまま走り出すと
+実行時保証モニタがクランプ／リジェクトする様子を運転席からリアルタイムに観察できます。
+
+```bash
+npm run bridge   # ヘッドレスホスト + UDPブリッジ :9200（信頼側）
+```
+
+あとは `unity/Scripts/` を Unity プロジェクト（2021.3+）に入れるだけ —
+手順は [`unity/README.md`](unity/README.md)、プロトコルは [`unity/PROTOCOL.md`](unity/PROTOCOL.md)。
+Unity はブラウザ版 SVG と同じ「信頼されない表示アダプタ」で、生成・コンパイル・安全審査・RTA は
+すべて Node ホスト側に残ります。Unity 側からは車両状態（速度/ギア/ドア）が `VEHICLE_STATE` として
+バスへ返送されます。
+
 ### 構成
 
 ```
@@ -364,7 +402,13 @@ test/
   program.test.mjs        集約ライフサイクル + 腐敗防止層のテスト
   runtime-monitor.test.mjs  実行時保証(Simplex)のテスト
   actuation.test.mjs      ユースケース結合テスト（DOM不要・Nodeのみ）
+  bridge-protocol.test.mjs  Unityブリッジのメッセージ変換テスト
+unity/                     Unity 車内デバッグクライアント（C#スクリプト + ドキュメントのみ）
+  Scripts/*.cs            CanBridgeClient / AmbientZoneLight / VehicleStateReporter / HUD
+  PROTOCOL.md             UDP JSON プロトコル仕様
 scripts/serve.mjs         依存ゼロのローカル静的サーバ
+scripts/unity-bridge.mjs   Unity向けヘッドレスホスト + UDPブリッジ
+scripts/bridge-protocol.mjs  ブリッジのメッセージ変換（純粋関数・テスト済み）
 ```
 
 ### 扱う CAN シグナル（快適系1ノードのみ）
@@ -381,6 +425,7 @@ scripts/serve.mjs         依存ゼロのローカル静的サーバ
 
 ```bash
 npm run serve   # http://localhost:8080 （静的サイト）
+npm run bridge  # Unityクライアント向けヘッドレスホスト（udp :9200）
 npm test        # node --test（安全審査テスト）
 cd ai && python -m unittest -q   # planner_core テスト
 ```
