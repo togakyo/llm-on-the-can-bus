@@ -79,6 +79,29 @@ POST http://localhost:8000/plan   {"intent": "..."} → {"dsl": {...}, "source":
 GET  http://localhost:8000/health                    → {"status":"ok","model":"...","device":"cpu|mps|cuda"}
 ```
 
+#### Backend: Rust (default) or Python — same API
+
+The frontend only speaks the `/plan` + `/health` HTTP contract above, so the backend is swappable.
+Two interchangeable implementations are provided:
+
+| Backend | Inference engine | Run |
+|---------|------------------|-----|
+| **Rust** (`backend-rs/`) | [candle](https://github.com/huggingface/candle) — native, no Python | `cd backend-rs && cargo run --release --features llm` |
+| **Python** (`ai/`) | transformers / PyTorch | `python ai/planner_server.py` |
+
+```bash
+# Rust — rule-based only (fast build, no ML deps, no download):
+cd backend-rs && cargo run
+# Rust — real model via candle (downloads Qwen2.5-0.5B to the HF cache on first run):
+cargo run --release --features llm
+# Apple Silicon GPU / NVIDIA:
+cargo run --release --features metal    # or: --features cuda
+cargo test                              # planner_core unit tests
+```
+
+Both backends share the exact same JSON contract, the same DSL normalization, and the same rule‑based
+fallback, so the page behaves identically regardless of which one is running on `:8000`.
+
 ### Project layout
 
 ```
@@ -92,7 +115,12 @@ docs/                     GitHub Pages content (served as-is, no build)
     safety.js             safety supervisor ★ most safety-critical
     ecu.js                ambient-lighting ECU (actuator state model)
     app.js                UI wiring + SVG render loop
-ai/
+backend-rs/                Rust backend (default) — candle-native inference
+  src/main.rs             tiny_http server: /plan, /health, CORS
+  src/planner_core.rs     prompt / JSON-extract / normalize / rule fallback + tests
+  src/model.rs            candle Qwen2 inference (feature = "llm")
+  Cargo.toml
+ai/                        Python backend (alternative) — transformers/PyTorch
   planner_server.py       local HF-model planner (HTTP :8000)
   planner_core.py         prompt / JSON-extract / normalize / rule fallback (no torch)
   test_planner_core.py    unit tests (no model needed)
@@ -139,8 +167,9 @@ gh api -X POST repos/togakyo/scratch-car-interior/pages \
 
 ### Small start toward real hardware
 
-1. **Planner → real LLM:** already done — `ai/planner_server.py` runs a local HF model. Swap in a larger
-   model with `--model`, or point `LlmPlanner`'s endpoint at your own service (same DSL contract).
+1. **Planner → real LLM:** already done — the Rust backend (`backend-rs`, candle) or the Python backend
+   (`ai/`, transformers) runs a local HF model. Swap in a larger model with `--model`, or point
+   `LlmPlanner`'s endpoint at your own service (same DSL contract).
 2. **Virtual bus → real CAN:** replace `VirtualCanBus` with SocketCAN (`can0`) / `python-can` / a CAN‑USB adapter;
    only the `send(frame)` body changes (keep the safety review before TX).
 3. **Actuator → real ECU:** drive an RGB LED strip from a microcontroller (e.g. Raspberry Pi + MCP2515) that
@@ -220,6 +249,29 @@ GET  http://localhost:8000/health                 → {"status":"ok","model":"�
 
 （実測: Apple Silicon で初回ロード ≒ 60秒、以降の生成は 1〜6秒/件。）
 
+#### バックエンドは Rust（既定）か Python — APIは同一
+
+フロントは上記 `/plan`・`/health` のHTTP契約しか使わないので、バックエンドは差し替え可能。
+2つの互換実装を同梱しています。
+
+| バックエンド | 推論エンジン | 実行 |
+|--------------|--------------|------|
+| **Rust**（`backend-rs/`） | [candle](https://github.com/huggingface/candle) — Pythonを使わないネイティブ実行 | `cd backend-rs && cargo run --release --features llm` |
+| **Python**（`ai/`） | transformers / PyTorch | `python ai/planner_server.py` |
+
+```bash
+# Rust — 規則ベースのみ（高速ビルド・ML依存なし・DLなし）:
+cd backend-rs && cargo run
+# Rust — candleで実モデル（初回に Qwen2.5-0.5B を HFキャッシュへDL）:
+cargo run --release --features llm
+# Apple Silicon GPU / NVIDIA:
+cargo run --release --features metal    # または --features cuda
+cargo test                              # planner_core の単体テスト
+```
+
+両バックエンドは **同一のJSON契約・同一のDSL正規化・同一の規則フォールバック** を持つため、
+`:8000` でどちらを起動してもページの挙動は同じです。
+
 ### 構成
 
 ```
@@ -233,7 +285,12 @@ docs/                     GitHub Pages 公開物（ビルド不要でそのま�
     safety.js             セーフティ・スーパーバイザー ★安全上の要
     ecu.js                アンビエント照明ECU（アクチュエータ状態モデル）
     app.js                UI配線 + SVG描画ループ
-ai/
+backend-rs/                Rustバックエンド（既定）— candleネイティブ推論
+  src/main.rs             tiny_http サーバ: /plan, /health, CORS
+  src/planner_core.rs     プロンプト/JSON抽出/正規化/規則フォールバック + テスト
+  src/model.rs            candle による Qwen2 推論（feature = "llm"）
+  Cargo.toml
+ai/                        Pythonバックエンド（代替）— transformers/PyTorch
   planner_server.py       ローカルHFモデルのプランナー（HTTP :8000）
   planner_core.py         プロンプト/JSON抽出/正規化/規則フォールバック（torch非依存）
   test_planner_core.py    単体テスト（モデル不要）
@@ -280,7 +337,7 @@ gh api -X POST repos/togakyo/scratch-car-interior/pages \
 
 ### 実機へのスモールスタート
 
-1. **プランナーを実LLMへ** — 実装済み。`ai/planner_server.py` がローカルHFモデルを実行。`--model` で大きいモデルに変更、または `LlmPlanner` のエンドポイントを自前サービスに向ける（DSL契約は同一）。
+1. **プランナーを実LLMへ** — 実装済み。Rust版（`backend-rs`, candle）または Python版（`ai/`, transformers）がローカルHFモデルを実行。`--model` で大きいモデルに変更、または `LlmPlanner` のエンドポイントを自前サービスに向ける（DSL契約は同一）。
 2. **仮想バスを実CANへ** — `VirtualCanBus` を SocketCAN(`can0`) / `python-can` / CAN-USB に置換。`send(frame)` の中身を変えるだけ（安全審査は送信前のまま維持）。
 3. **アクチュエータを実ECUへ** — RGB LEDストリップ＋マイコン（例: Raspberry Pi + MCP2515）で `ALM_ZONE_CMD` を受けて点灯。**照明という非安全アクチュエータ**から始めるのが安全なスモールスタート。
 
