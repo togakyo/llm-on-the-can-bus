@@ -7,6 +7,11 @@
 
 **AIが毎回「CAN制御プログラム」を生成 → 安全審査を通過 → 車内アンビエント照明アクチュエータを制御する。**
 
+![Unity in-cabin demo: a calm program lights the cabin while parked; once driving, a "red fast flash" intent is REJECTED by the safety supervisor and never reaches the bus](docs/assets/demo-unity.gif)
+
+*Unity in‑cabin debug view — parked: cyan "breathe" passes review and lights up; driving at 60 km/h: a "red fast flash" intent is **REJECTED** (0 frames reach the bus).
+Unity車内デバッグ環境 — 停車中はシアンの呼吸が審査を通過して点灯し、60km/h走行中の「赤く速く点滅」は安全審査に**REJECT**されて1フレームもバスに流れない。*
+
 🌐 **Live demo (GitHub Pages):** `https://togakyo.github.io/scratch-car-interior/`
 
 **[English](#english) ｜ [日本語](#日本語)**

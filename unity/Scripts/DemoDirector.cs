@@ -38,7 +38,12 @@ namespace CanAiActuatorLab
             if (bridge == null) bridge = FindObjectOfType<CanBridgeClient>();
             if (vehicle == null) vehicle = FindObjectOfType<VehicleStateReporter>();
             if (vehicle != null) vehicle.keyboardControl = false; // 手入力とデモ進行の競合を防ぐ
-            if (record) Directory.CreateDirectory(outputDir);
+            if (record)
+            {
+                Directory.CreateDirectory(outputDir);
+                foreach (var stale in Directory.GetFiles(outputDir, "frame_*.png"))
+                    File.Delete(stale); // 前回の録画が混ざらないように
+            }
             Application.targetFrameRate = 30;
         }
 
@@ -87,12 +92,11 @@ namespace CanAiActuatorLab
             }
         }
 
-        // 同期キャプチャ（CaptureScreenshot は書き出しタイミングが不定なため Texture 経由で確実に）
+        // CaptureScreenshotAsTexture は Retina の Game ビューで読み出し領域がずれるため、
+        // バックバッファをそのまま書き出すファイル版を使う（書き込みは非同期だが順序は保たれる）
         private void CaptureFrame()
         {
-            var tex = ScreenCapture.CaptureScreenshotAsTexture();
-            File.WriteAllBytes(Path.Combine(outputDir, $"frame_{_frame:D4}.png"), tex.EncodeToPNG());
-            Destroy(tex);
+            ScreenCapture.CaptureScreenshot(Path.Combine(outputDir, $"frame_{_frame:D4}.png"));
             _frame++;
         }
     }

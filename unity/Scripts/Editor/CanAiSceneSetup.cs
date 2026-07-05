@@ -66,12 +66,14 @@ namespace CanAiActuatorLab
             var sun = Object.FindObjectOfType<Light>();
             if (sun != null && sun.type == LightType.Directional) sun.intensity = 0.15f;
 
-            // 運転席の少し後ろからダッシュボード方向を見るカメラ
+            // 後席上方からダッシュボード方向を見下ろすカメラ
+            // （シート背もたれ(高さ~1.2m)より上に置かないと車内が遮られる）
             var cam = Camera.main;
             if (cam != null)
             {
-                cam.transform.position = new Vector3(0f, 1.15f, -1.3f);
-                cam.transform.LookAt(new Vector3(0f, 0.55f, 0.5f));
+                cam.transform.position = new Vector3(0f, 1.65f, -1.95f);
+                cam.transform.LookAt(new Vector3(0f, 0.45f, 0.6f));
+                cam.fieldOfView = 55f;
                 cam.clearFlags = CameraClearFlags.SolidColor;
                 cam.backgroundColor = new Color(0.03f, 0.03f, 0.05f);
             }
