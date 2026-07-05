@@ -7,6 +7,9 @@
 
 **AIが毎回「CAN制御プログラム」を生成 → 安全審査を通過 → 車内アンビエント照明アクチュエータを制御する。**
 
+> *Why "**scratch**-car-interior"? — because the AI writes each in‑cabin control program **from scratch**, every single time.
+> リポジトリ名の「scratch」は、AIが毎回ゼロ（スクラッチ）から車内制御プログラムを書き起こすことに由来します。*
+
 ![Unity in-cabin demo: a calm program lights the cabin while parked; once driving, a "red fast flash" intent is REJECTED by the safety supervisor and never reaches the bus](docs/assets/demo-unity.gif)
 
 *Unity in‑cabin debug view — parked: cyan "breathe" passes review and lights up; driving at 60 km/h: a "red fast flash" intent is **REJECTED** (0 frames reach the bus).
