@@ -51,6 +51,18 @@ body {
 }
 .pipeline-legend .arrow { color: var(--accent); }
 
+.topbar-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.lang-switch {
+  display: inline-flex; border: 1px solid var(--line); border-radius: 999px;
+  overflow: hidden; background: var(--panel);
+}
+.lang-switch button {
+  background: none; border: none; color: var(--muted); cursor: pointer;
+  font: inherit; font-size: 12px; padding: 7px 13px;
+}
+.lang-switch button:hover { color: var(--text); }
+.lang-switch button.active { background: var(--accent); color: #06131a; font-weight: 700; }
+
 /* ---- layout ---- */
 main {
   display: grid;
@@ -71,6 +83,9 @@ main {
 .panel h2 small { color: var(--muted); font-weight: 400; font-size: 11.5px; }
 .panel h3 { font-size: 12.5px; color: var(--muted); margin: 14px 0 6px; }
 .control-col { display: flex; flex-direction: column; gap: 18px; }
+/* grid の既定 min-width:auto を外す。長い1行(DSLのrationale等)が
+   トラック幅を押し広げてコックピット側を潰すのを防ぐ。 */
+.stage-panel, .control-col, .panel { min-width: 0; }
 
 /* ---- stage ---- */
 .stage-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
@@ -104,6 +119,7 @@ main {
   padding: 4px 9px; border-radius: 999px;
 }
 .zchip i { width: 9px; height: 9px; border-radius: 50%; background: #222; display: inline-block; }
+.zchip b { font-weight: 500; }
 
 .stage-controls {
   display: flex; align-items: center; justify-content: space-between; gap: 14px;
@@ -132,6 +148,17 @@ textarea, .code {
   padding: 6px 11px; border-radius: 999px; cursor: pointer; font-size: 12.5px;
 }
 .chip:hover { border-color: var(--accent); color: var(--accent); }
+
+/* 「壊してみる」プリセット: 走行中にすると安全審査が止める入力 */
+.preset-group { margin: 10px 0; }
+.preset-head {
+  display: block; font-size: 11px; letter-spacing: 0.6px; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 5px;
+}
+.preset-group .presets { margin: 0; }
+.preset-attack .preset-head { color: #ff8a94; }
+.chip-attack { border-color: #5a2630; color: #ffb3ba; background: #17090c; }
+.chip-attack:hover { border-color: #ff5563; color: #ff8a94; }
 button.primary {
   width: 100%; margin-top: 4px;
   background: linear-gradient(90deg, var(--accent-2), var(--accent));

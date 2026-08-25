@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CAN-AI Actuator Lab — AI生成CAN制御 × 車内イルミ</title>
-  <meta name="description" content="AIが車載CAN制御プログラムを毎回生成し、安全審査を通してアンビエント照明を制御するデモ" />
+  <title>LLM on the CAN bus — an AI writes the control program, safely</title>
+  <meta name="description" content="An LLM writes a fresh CAN control program from your intent. A trusted safety supervisor inspects every frame before it reaches the bus — try to make it do something dangerous." />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -12,16 +12,21 @@
     <div class="brand">
       <span class="logo">◉</span>
       <div>
-        <h1>CAN-AI Actuator Lab</h1>
-        <p>AIが毎回“CAN制御プログラム”を生成 → 安全審査 → 車内イルミを制御</p>
+        <h1>LLM on the CAN bus</h1>
+        <p data-i18n="brand.tagline"></p>
       </div>
     </div>
-    <div class="pipeline-legend">
-      <span>① 意図</span><span class="arrow">→</span>
-      <span>② AI生成DSL</span><span class="arrow">→</span>
-      <span>③ 安全審査</span><span class="arrow">→</span>
-      <span>④ CANバス</span><span class="arrow">→</span>
-      <span>⑤ アクチュエータ</span>
+    <div class="topbar-right">
+      <div class="pipeline-legend">
+        <span data-i18n="pipe.1"></span><span class="arrow">→</span>
+        <span data-i18n="pipe.2"></span><span class="arrow">→</span>
+        <span data-i18n="pipe.3"></span><span class="arrow">→</span>
+        <span data-i18n="pipe.4"></span><span class="arrow">→</span>
+        <span data-i18n="pipe.5"></span>
+      </div>
+      <div class="lang-switch" role="group" aria-label="Language">
+        <button type="button" data-lang="en">EN</button><button type="button" data-lang="ja">日本語</button>
+      </div>
     </div>
   </header>
 
@@ -29,7 +34,7 @@
     <!-- 左: コックピット可視化 -->
     <section class="stage-panel panel">
       <div class="stage-head">
-        <h2>車内アンビエント照明</h2>
+        <h2 data-i18n="stage.title"></h2>
         <div id="vehicle-badge" class="badge badge-park">停車中 · P · 0 km/h</div>
       </div>
 
@@ -103,8 +108,8 @@
           <ellipse id="z-footwell_fl" data-zone="footwell_fl" class="lit" cx="235" cy="560" rx="95" ry="30" />
           <ellipse id="z-footwell_fr" data-zone="footwell_fr" class="lit" cx="470" cy="575" rx="95" ry="28" />
 
-          <text x="235" y="565" text-anchor="middle" class="zone-cap">足元L</text>
-          <text x="470" y="580" text-anchor="middle" class="zone-cap">足元R</text>
+          <text x="235" y="565" text-anchor="middle" class="zone-cap" data-i18n="zone.footL"></text>
+          <text x="470" y="580" text-anchor="middle" class="zone-cap" data-i18n="zone.footR"></text>
         </svg>
 
         <!-- zone status chips -->
@@ -113,58 +118,65 @@
 
       <div class="stage-controls">
         <label class="drive-toggle">
-          <span>車両状態</span>
+          <span data-i18n="stage.vehicle"></span>
           <input type="range" id="speed" min="0" max="120" value="0" step="5" />
           <output id="speed-out">0 km/h（停車 · P）</output>
         </label>
-        <button id="estop" class="estop">■ E-STOP（全消灯）</button>
+        <button id="estop" class="estop" data-i18n="stage.estop"></button>
       </div>
     </section>
 
     <!-- 右: 操作 & パイプライン -->
     <section class="control-col">
       <div class="panel intent-panel">
-        <h2>① 意図を入力</h2>
-        <textarea id="intent" rows="2" placeholder="例）ドアを開けたら足元とドアを白くゆっくり点灯"></textarea>
+        <h2 data-i18n="intent.title"></h2>
+        <textarea id="intent" rows="2" data-i18n-ph="intent.ph"></textarea>
         <div class="mode-select">
-          <span class="mode-label">プランナー:</span>
-          <label><input type="radio" name="mode" value="heuristic" checked /> ルール（オフライン）</label>
-          <label><input type="radio" name="mode" value="llm" /> ローカルAI（HF Qwen2.5-0.5B @ localhost:8000）</label>
+          <span class="mode-label" data-i18n="intent.planner"></span>
+          <label><input type="radio" name="mode" value="heuristic" checked /> <span data-i18n="intent.rule"></span></label>
+          <label><input type="radio" name="mode" value="llm" /> <span data-i18n="intent.llm"></span></label>
         </div>
         <div id="mode-note" class="mode-note"></div>
-        <div id="presets" class="presets"></div>
-        <button id="generate" class="primary">⚡ AIで制御プログラムを生成</button>
+        <div class="preset-group">
+          <span class="preset-head" data-i18n="preset.safe"></span>
+          <div id="presets-safe" class="presets"></div>
+        </div>
+        <div class="preset-group preset-attack">
+          <span class="preset-head" data-i18n="preset.attack"></span>
+          <div id="presets-attack" class="presets"></div>
+        </div>
+        <button id="generate" class="primary" data-i18n="intent.go"></button>
       </div>
 
       <div class="panel code-panel">
-        <h2>② AIが生成したDSL <small>（CAN IDは書けない=構造的サンドボックス）</small></h2>
+        <h2><span data-i18n="dsl.title"></span> <small data-i18n="dsl.note"></small></h2>
         <div id="dsl-source" class="dsl-source"></div>
-        <pre id="dsl-out" class="code"><span class="muted">未生成</span></pre>
-        <h3>コンパイル結果（CANフレーム）</h3>
+        <pre id="dsl-out" class="code"><span class="muted" data-i18n="dsl.empty"></span></pre>
+        <h3 data-i18n="dsl.frames"></h3>
         <pre id="frames-out" class="code small"><span class="muted">—</span></pre>
       </div>
 
       <div class="panel safety-panel">
-        <h2>③ 安全審査 <small id="safety-summary"></small></h2>
-        <ul id="safety-list" class="safety-list"><li class="muted">未審査</li></ul>
+        <h2><span data-i18n="safety.title"></span> <small id="safety-summary"></small></h2>
+        <ul id="safety-list" class="safety-list"><li class="muted" data-i18n="safety.empty"></li></ul>
       </div>
 
       <div class="panel bus-panel">
-        <h2>④ 仮想CANバス <small id="bus-count"></small></h2>
+        <h2><span data-i18n="bus.title"></span> <small id="bus-count"></small></h2>
         <div id="bus-monitor" class="bus-monitor"></div>
       </div>
 
       <div class="panel audit-panel">
-        <h2>⑤ 実行時保証（RTA）＋ 監査証跡 <small>Simplex: 走行状態が変わると点灯中の状態も再審査</small></h2>
-        <div id="rta-status" class="rta-status rta-nominal">● NOMINAL — 逸脱なし</div>
+        <h2><span data-i18n="rta.title"></span> <small data-i18n="rta.note"></small></h2>
+        <div id="rta-status" class="rta-status rta-nominal" data-i18n="rta.nominal"></div>
         <div id="audit-log" class="audit-log"></div>
       </div>
     </section>
   </main>
 
   <footer class="foot">
-    <span>多層防御: <b>AIはDSLのみ生成</b> → <b>信頼コンパイラ</b>がCAN化 → <b>安全審査</b>で検証/クランプ → 仮想バス。安全系IDには構造的に到達不可。</span>
-    <a href="https://github.com/togakyo/scratch-car-interior" target="_blank" rel="noopener">README / アーキテクチャ →</a>
+    <span data-i18n-html="foot.text"></span>
+    <a href="https://github.com/togakyo/llm-on-the-can-bus" target="_blank" rel="noopener" data-i18n="foot.link"></a>
   </footer>
 
   <script type="module" src="src/app.js"></script>

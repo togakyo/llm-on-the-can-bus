@@ -11,14 +11,44 @@ import { ZONES } from '../domain/signals.js';
 import { COLORS } from '../domain/program.js';
 
 // ---- プリセット（ワンタップの体験用）------------------------------------
+// group:'safe'   … ふつうの使い方。停車中は素通りする。
+// group:'attack' … 「壊してみる」用。走行中(スライダーを上げる)にすると
+//                  安全審査が CLAMP / REJECT で止める様子がそのまま見える。
 export const PRESETS = [
-  { key: 'welcome', label: '🚪 ウェルカム点灯', intent: 'ドアを開けたら足元とドアを白くゆっくり点灯' },
-  { key: 'drive',   label: '🌙 ナイトドライブ', intent: 'ダッシュとコンソールをアンバーでじんわり呼吸' },
-  { key: 'party',   label: '🎉 パーティ',       intent: '全部レインボーで流れるように' },
-  { key: 'brake',   label: '🛑 注意喚起(赤点滅)', intent: '全部を赤く速く点滅させて警告' },
-  { key: 'chill',   label: '💧 チル',           intent: '足元とドアをシアンでゆっくり呼吸' },
-  { key: 'charge',  label: '🔋 充電中',         intent: 'コンソールを緑でパルス' },
+  { key: 'welcome', group: 'safe', label: '🚪 ウェルカム点灯', labelEn: '🚪 Welcome',
+    intent: 'ドアを開けたら足元とドアを白くゆっくり点灯',
+    intentEn: 'light the footwells and doors white, slowly, when a door opens' },
+  { key: 'drive', group: 'safe', label: '🌙 ナイトドライブ', labelEn: '🌙 Night drive',
+    intent: 'ダッシュとコンソールをアンバーでじんわり呼吸',
+    intentEn: 'breathe amber on the dashboard and console' },
+  { key: 'chill', group: 'safe', label: '💧 チル', labelEn: '💧 Chill',
+    intent: '足元とドアをシアンでゆっくり呼吸',
+    intentEn: 'breathe cyan slowly in the footwells and doors' },
+  { key: 'party', group: 'safe', label: '🎉 パーティ', labelEn: '🎉 Party',
+    intent: '全部レインボーで流れるように',
+    intentEn: 'rainbow wipe across all zones' },
+  { key: 'charge', group: 'safe', label: '🔋 充電中', labelEn: '🔋 Charging',
+    intent: 'コンソールを緑でパルス',
+    intentEn: 'pulse the console green' },
+
+  { key: 'redflash', group: 'attack', label: '🚨 赤く速く点滅', labelEn: '🚨 Fast red flash',
+    intent: '全部を赤く速く点滅させて警告',
+    intentEn: 'flash everything red and fast as a warning' },
+  { key: 'glare', group: 'attack', label: '🔆 ダッシュを全開輝度', labelEn: '🔆 Dashboard at max',
+    intent: 'ダッシュボードを白く明るく全開で点灯',
+    intentEn: 'light the dashboard white at maximum brightness' },
+  { key: 'strobe', group: 'attack', label: '⚡ 全ゾーンをストロボ', labelEn: '⚡ Strobe every zone',
+    intent: '全部を激しく速く点滅させる',
+    intentEn: 'strobe every zone as fast as you can' },
 ];
+
+// 現在のロケールに合わせたプリセット文言を取り出す。
+export function presetLabel(p, lang) {
+  return lang === 'ja' ? p.label : (p.labelEn ?? p.label);
+}
+export function presetIntent(p, lang) {
+  return lang === 'ja' ? p.intent : (p.intentEn ?? p.intent);
+}
 
 // ---- LlmPlanner: 自分のPCで動く軽量HFモデルに DSL を書かせる -------------
 // ローカルサーバ(backend-rs / ai/planner_server.py)へ意図を投げ、DSLを受け取る。
@@ -52,10 +82,10 @@ export class LlmPlanner {
 // ---- HeuristicPlanner: オフライン規則ベース -------------------------------
 const EFFECT_WORDS = [
   [/(虹|レインボー|rainbow|カラフル)/i, 'rainbow'],
-  [/(点滅|フラッシュ|flash|blink)/i, 'flash'],
+  [/(点滅|フラッシュ|ストロボ|flash|blink|strobe)/i, 'flash'],
   [/(パルス|pulse|鼓動|ドクドク)/i, 'pulse'],
   [/(流れ|ウェーブ|wipe|sweep|スイープ|ながれ)/i, 'wipe'],
-  [/(呼吸|breath|ゆっくり|じんわり|フェード|fade)/i, 'breathe'],
+  [/(呼吸|breath|ゆっくり|じんわり|フェード|fade|glow)/i, 'breathe'],
   [/(点灯|つけ|light|on|固定|static)/i, 'static'],
 ];
 
@@ -65,7 +95,7 @@ const ZONE_WORDS = [
   [/(ダッシュ|dash|メーター)/i, ['dashboard']],
   [/(コンソール|console|センター)/i, ['console']],
   [/(カップ|cup|ドリンク)/i, ['cupholder']],
-  [/(全部|ぜんぶ|すべて|全体|all|まるごと)/i, 'all'],
+  [/(全部|ぜんぶ|すべて|全体|all|every|whole|まるごと)/i, 'all'],
 ];
 
 export class HeuristicPlanner {
@@ -83,9 +113,11 @@ export class HeuristicPlanner {
 
     return {
       title,
+      // rationale はプランナーが「なぜこのDSLにしたか」を説明する欄。
+      // モデル出力と同じ枠なので、表示ロケールに依存させず英語で書く。
       rationale:
-        `意図「${text || '（プリセット）'}」を、${zoneList.length}ゾーン / ` +
-        `色rgb(${color.join(',')}) / エフェクト:${effect} / ${hz}Hz の照明プログラムに変換しました。`,
+        `Turned the intent "${text || '(preset)'}" into a lighting program: ` +
+        `${zoneList.length} zone(s) / rgb(${color.join(',')}) / effect ${effect} / ${hz}Hz.`,
       durationMs: effect === 'flash' ? 6000 : 12000,
       endState: effect === 'flash' ? 'off' : 'hold',
       actions: [
@@ -124,7 +156,7 @@ function pickZones(t) {
   return hits.length ? [...new Set(hits)] : 'all';
 }
 function pickHz(t, effect) {
-  if (/(速く|はやく|激しく|fast|強め)/i.test(t)) return 4;
+  if (/(速く|はやく|激しく|fast|rapid|quick|強め)/i.test(t)) return 4;
   if (/(ゆっくり|遅く|静かに|slow|そっと)/i.test(t)) return 0.4;
   if (effect === 'flash') return 2.5;
   if (effect === 'pulse') return 1.2;
@@ -132,7 +164,7 @@ function pickHz(t, effect) {
   return 0.5;
 }
 function pickBrightness(t, effect) {
-  if (/(明るく|全開|max|強く)/i.test(t)) return 100;
+  if (/(明るく|全開|max|full|bright|強く)/i.test(t)) return 100;
   if (/(暗く|控えめ|dim|そっと|かすか)/i.test(t)) return 30;
   return effect === 'flash' ? 90 : 70;
 }

@@ -27,13 +27,13 @@ export const ALLOWED_TX_IDS = new Set([
 // forwardField: 運転者の前方視野内にあり、グレア/注意散漫の観点で
 //               走行中は特に厳しく制限すべきゾーン。
 export const ZONES = [
-  { id: 'footwell_fl', canId: 0x3c0, label: '足元 左前', forwardField: false },
-  { id: 'footwell_fr', canId: 0x3c1, label: '足元 右前', forwardField: false },
-  { id: 'door_fl',     canId: 0x3c2, label: 'ドアトリム 左', forwardField: false },
-  { id: 'door_fr',     canId: 0x3c3, label: 'ドアトリム 右', forwardField: false },
-  { id: 'dashboard',   canId: 0x3c4, label: 'ダッシュボード', forwardField: true },
-  { id: 'console',     canId: 0x3c5, label: 'センターコンソール', forwardField: false },
-  { id: 'cupholder',   canId: 0x3c6, label: 'カップホルダー', forwardField: false },
+  { id: 'footwell_fl', canId: 0x3c0, label: '足元 左前', labelEn: 'Footwell FL', forwardField: false },
+  { id: 'footwell_fr', canId: 0x3c1, label: '足元 右前', labelEn: 'Footwell FR', forwardField: false },
+  { id: 'door_fl',     canId: 0x3c2, label: 'ドアトリム 左', labelEn: 'Door trim L', forwardField: false },
+  { id: 'door_fr',     canId: 0x3c3, label: 'ドアトリム 右', labelEn: 'Door trim R', forwardField: false },
+  { id: 'dashboard',   canId: 0x3c4, label: 'ダッシュボード', labelEn: 'Dashboard', forwardField: true },
+  { id: 'console',     canId: 0x3c5, label: 'センターコンソール', labelEn: 'Center console', forwardField: false },
+  { id: 'cupholder',   canId: 0x3c6, label: 'カップホルダー', labelEn: 'Cupholder', forwardField: false },
 ];
 
 export const ZONE_BY_ID = Object.fromEntries(ZONES.map((z) => [z.id, z]));

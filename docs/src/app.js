@@ -8,9 +8,12 @@
 //            ③ 信頼コンパイラ → ④ 安全審査 → ⑤ TXゲート経由でバスへ
 //          RuntimeAssuranceMonitor が車両状態をセンシングし、実行中も再保証
 //          AmbientEcu が状態更新 → SVGゾーンを毎フレーム描画
+//
+// 表示言語(EN/JA)はこの層だけの関心事。ドメインは言語を知らず、審査理由を
+// 構造データ({code,...})で返すので、切替は「描き直すだけ」で成立する。
 
 import { VirtualCanBus, scheduleProgram } from './infrastructure/can.js';
-import { HeuristicPlanner, LlmPlanner, PRESETS } from './infrastructure/planners.js';
+import { HeuristicPlanner, LlmPlanner, PRESETS, presetLabel, presetIntent } from './infrastructure/planners.js';
 import { AmbientEcu } from './infrastructure/ecu.js';
 import { DomainEventBus, EVT } from './domain/events.js';
 import { SafetyAuditLog } from './domain/audit.js';
@@ -20,6 +23,10 @@ import {
   ZONES, ZONE_BY_CANID, CAN_ID, GEAR,
   encodeVehicleState, frameToHex, idToHex,
 } from './domain/signals.js';
+import {
+  t, getLang, setLang, onLangChange, applyDom,
+  zoneLabel, formatReasons, formatReasonsEn,
+} from './i18n.js';
 
 const $ = (s) => document.querySelector(s);
 
@@ -29,7 +36,8 @@ const ecu = new AmbientEcu();
 const events = new DomainEventBus();
 const audit = new SafetyAuditLog({ capacity: 120 });
 audit.attach(events);
-const monitor = new RuntimeAssuranceMonitor({ bus, events });
+// 監査証跡は「機械が読むログ」なので理由文は英語固定にする（UIロケールに依存させない）。
+const monitor = new RuntimeAssuranceMonitor({ bus, events, formatReasons: formatReasonsEn });
 const llmPlanner = new LlmPlanner('http://localhost:8000');
 const service = new ActuationService({
   bus,
@@ -50,66 +58,90 @@ let vehicleUi = { ignition: 1, gear: GEAR.P, speedKmh: 0, doors: 0 };
 
 function setSpeed(kmh) {
   vehicleUi = { ...vehicleUi, speedKmh: kmh, gear: kmh > 0 ? GEAR.D : GEAR.P };
-  const driving = kmh > 5;
-  $('#speed-out').textContent = `${kmh} km/h（${driving ? '走行 · D' : '停車 · P'}）`;
-  const badge = $('#vehicle-badge');
-  badge.textContent = `${driving ? '走行中' : '停車中'} · ${driving ? 'D' : 'P'} · ${kmh} km/h`;
-  badge.className = 'badge ' + (driving ? 'badge-drive' : 'badge-park');
+  renderVehicle();
   // センサ値としてバスへ流す → RuntimeAssuranceMonitor が受信して再保証する
   bus.send(encodeVehicleState(vehicleUi), 'vehicle');
 }
 
+function renderVehicle() {
+  const kmh = vehicleUi.speedKmh;
+  const driving = kmh > 5;
+  const state = t(driving ? 'veh.driving' : 'veh.parked');
+  const gear = driving ? 'D' : 'P';
+  $('#speed-out').textContent = `${kmh} km/h · ${state} · ${gear}`;
+  const badge = $('#vehicle-badge');
+  badge.textContent = `${state} · ${gear} · ${kmh} km/h`;
+  badge.className = 'badge ' + (driving ? 'badge-drive' : 'badge-park');
+}
+
 // ---- メイン: 生成 → 審査 → 実行 ----------------------------------------
+// 最後の結果を保持しておき、言語切替時に「再審査せず」描き直せるようにする。
+let last = { program: null, source: null, review: null };
+
 async function runIntent(intent) {
   const { program, source, review } = await service.runIntent(intent, mode);
-  renderDsl(program, source);
-  renderFrames(program.compiled);
-  renderSafety(review);
+  last = { program, source, review };
+  renderDsl();
+  renderFrames();
+  renderSafety();
 }
 
 function emergencyStop() {
   service.estop();
-  flashSafety('E-STOP 実行: 全ゾーン消灯・フェイルセーフ状態へ');
+  last = { program: null, source: null, review: null };
+  flashSafety(t('safety.estop'));
 }
 
 // ---- レンダリング: DSL / frames / safety / bus / audit -------------------
-function renderDsl(program, source) {
+function renderDsl() {
+  const { program, source } = last;
   const src = $('#dsl-source');
-  if (src) src.textContent = `${program.id} · 生成元: ${source}`;
-  $('#dsl-out').textContent = JSON.stringify(program.dsl, null, 2);
+  if (src) src.textContent = program ? `${program.id} · ${t('dsl.source')}: ${source}` : '';
+  $('#dsl-out').textContent = program
+    ? JSON.stringify(program.dsl, null, 2)
+    : t('dsl.empty');
 }
 
-function renderFrames(compiled) {
+function renderFrames() {
+  const compiled = last.program?.compiled;
+  if (!compiled) { $('#frames-out').textContent = '—'; return; }
   const lines = compiled.steps.map((s) => {
     const z = ZONE_BY_CANID[s.frame.id];
-    return `+${String(s.atMs).padStart(5)}ms  ${idToHex(s.frame.id)} [${s.frame.dlc}]  ${frameToHex(s.frame)}  ; ${z ? z.label : '-'}`;
+    return `+${String(s.atMs).padStart(5)}ms  ${idToHex(s.frame.id)} [${s.frame.dlc}]  ${frameToHex(s.frame)}  ; ${z ? zoneLabel(z) : '-'}`;
   });
   $('#frames-out').textContent = lines.join('\n') || '—';
 }
 
-function renderSafety(review) {
-  const { results, summary } = review;
+function renderSafety() {
+  const list = $('#safety-list');
+  if (!last.review) {
+    list.innerHTML = `<li class="muted">${t('safety.empty')}</li>`;
+    $('#safety-summary').textContent = '';
+    return;
+  }
+  const { results, summary } = last.review;
   $('#safety-summary').textContent =
-    `${summary.driving ? '走行中ポリシー' : '停車中ポリシー'} · ` +
+    `${t(summary.driving ? 'safety.policyD' : 'safety.policyP')} · ` +
     `PASS ${summary.pass} / CLAMP ${summary.clamp} / REJECT ${summary.reject}`;
 
-  const list = $('#safety-list');
   list.innerHTML = '';
   for (const r of results) {
-    const z = r.zoneId ? (ZONES.find((x) => x.id === r.zoneId)?.label ?? r.zoneId) : (r.frame.id === CAN_ID.ALM_GLOBAL_CMD ? 'グローバル' : idToHex(r.frame.id));
+    const zone = r.zoneId ? ZONES.find((x) => x.id === r.zoneId) : null;
+    const z = zone ? zoneLabel(zone)
+      : (r.frame.id === CAN_ID.ALM_GLOBAL_CMD ? 'GLOBAL' : idToHex(r.frame.id));
     const li = document.createElement('li');
     li.className = `sv sv-${r.verdict}`;
     const tag = { pass: 'PASS', clamp: 'CLAMP', reject: 'REJECT' }[r.verdict];
-    li.innerHTML = `<span class="sv-tag">${tag}</span><span class="sv-zone">${z}</span><span class="sv-reason">${r.reasons.join(' / ')}</span>`;
+    li.innerHTML = `<span class="sv-tag">${tag}</span><span class="sv-zone">${z}</span><span class="sv-reason">${formatReasons(r.reasons)}</span>`;
     list.appendChild(li);
   }
   for (const w of summary.watchdog) {
     const li = document.createElement('li');
     li.className = 'sv sv-clamp';
-    li.innerHTML = `<span class="sv-tag">WDT</span><span class="sv-zone">watchdog</span><span class="sv-reason">${w}</span>`;
+    li.innerHTML = `<span class="sv-tag">WDT</span><span class="sv-zone">watchdog</span><span class="sv-reason">${formatReasons([w])}</span>`;
     list.appendChild(li);
   }
-  if (!results.length) list.innerHTML = '<li class="muted">審査対象なし</li>';
+  if (!results.length) list.innerHTML = `<li class="muted">${t('safety.none')}</li>`;
 }
 
 function flashSafety(msg) {
@@ -118,33 +150,45 @@ function flashSafety(msg) {
   $('#safety-summary').textContent = '';
 }
 
+// バス行は「言語に依存しない生データ」で保持し、描画時に文言化する。
 const busRows = [];
 function pushBusRow(frame) {
-  const z = ZONE_BY_CANID[frame.id];
-  const cls = frame.tag === 'estop' ? 'row-estop'
-    : frame.tag === 'vehicle' ? 'row-veh'
-    : frame.tag === 'monitor' ? 'row-estop'
-    : 'row-tx';
-  busRows.unshift(
-    `<div class="brow ${cls}"><span class="bt">${(frame.t / 1000).toFixed(2)}s</span>` +
-    `<span class="bid">${idToHex(frame.id)}</span>` +
-    `<span class="bd">${frameToHex(frame)}</span>` +
-    `<span class="bn">${frame.tag === 'monitor' ? 'RTA介入' : z ? z.label : (frame.tag === 'vehicle' ? 'VEHICLE_STATE' : frame.tag === 'estop' ? 'E-STOP' : 'GLOBAL')}</span></div>`,
-  );
+  busRows.unshift(frame);
   if (busRows.length > 40) busRows.pop();
-  $('#bus-monitor').innerHTML = busRows.join('');
-  $('#bus-count').textContent = `送信 ${bus.txCount} フレーム`;
+  renderBus();
+}
+
+function busRowName(frame) {
+  if (frame.tag === 'monitor') return t('bus.rta');
+  const z = ZONE_BY_CANID[frame.id];
+  if (z) return zoneLabel(z);
+  if (frame.tag === 'vehicle') return 'VEHICLE_STATE';
+  if (frame.tag === 'estop') return t('bus.estop');
+  return 'GLOBAL';
+}
+
+function renderBus() {
+  $('#bus-monitor').innerHTML = busRows.map((frame) => {
+    const cls = frame.tag === 'estop' || frame.tag === 'monitor' ? 'row-estop'
+      : frame.tag === 'vehicle' ? 'row-veh'
+      : 'row-tx';
+    return `<div class="brow ${cls}"><span class="bt">${(frame.t / 1000).toFixed(2)}s</span>` +
+      `<span class="bid">${idToHex(frame.id)}</span>` +
+      `<span class="bd">${frameToHex(frame)}</span>` +
+      `<span class="bn">${busRowName(frame)}</span></div>`;
+  }).join('');
+  $('#bus-count').textContent = `${bus.txCount} ${t('bus.count')}`;
 }
 
 // ---- 実行時保証（RTA）ステータス + 監査証跡 -------------------------------
 const auditRows = [];
 audit.onAppend((rec) => {
-  const t = new Date(rec.at).toLocaleTimeString('ja-JP', { hour12: false });
+  const time = new Date(rec.at).toLocaleTimeString('en-GB', { hour12: false });
   const cls = rec.type === EVT.RUNTIME_INTERVENTION || rec.type === EVT.ESTOP_TRIGGERED
     ? 'arow-alert'
     : rec.type === EVT.PROGRAM_REVIEWED ? 'arow-review' : '';
   auditRows.unshift(
-    `<div class="arow ${cls}"><span class="at">#${rec.seq} ${t}</span>` +
+    `<div class="arow ${cls}"><span class="at">#${rec.seq} ${time}</span>` +
     `<span class="aev">${rec.type}</span>` +
     `<span class="apid">${rec.programId ?? ''}${rec.policyVersion ? ` · policy v${rec.policyVersion}` : ''}</span>` +
     `<span class="adet">${rec.detail}</span></div>`,
@@ -153,18 +197,19 @@ audit.onAppend((rec) => {
   $('#audit-log').innerHTML = auditRows.join('');
 });
 
-events.subscribe(EVT.RUNTIME_INTERVENTION, () => {
+function renderRta() {
   const el = $('#rta-status');
-  el.textContent = `⚠ 介入 ${monitor.interventions} 件（安全側へ矯正済み）`;
-  el.className = 'rta-status rta-intervened';
-});
-events.subscribe(EVT.PROGRAM_DISPATCHED, () => {
-  if (monitor.interventions === 0) {
-    const el = $('#rta-status');
-    el.textContent = '● NOMINAL — 逸脱なし';
+  if (monitor.interventions > 0) {
+    el.textContent = t('rta.intervened', { n: monitor.interventions });
+    el.className = 'rta-status rta-intervened';
+  } else {
+    el.textContent = t('rta.nominal');
     el.className = 'rta-status rta-nominal';
   }
-});
+}
+
+events.subscribe(EVT.RUNTIME_INTERVENTION, renderRta);
+events.subscribe(EVT.PROGRAM_DISPATCHED, renderRta);
 
 // ---- SVG イルミ描画ループ ----------------------------------------------
 const zoneEls = {};
@@ -176,9 +221,12 @@ const chipEls = {};
 for (const z of ZONES) {
   const c = document.createElement('span');
   c.className = 'zchip';
-  c.innerHTML = `<i></i>${z.label}`;
+  c.innerHTML = '<i></i><b></b>';
   chipsWrap.appendChild(c);
   chipEls[z.id] = c;
+}
+function renderChipLabels() {
+  for (const z of ZONES) chipEls[z.id].querySelector('b').textContent = zoneLabel(z);
 }
 
 function render() {
@@ -202,16 +250,20 @@ function render() {
 
 // ---- UI 配線 ------------------------------------------------------------
 function buildPresets() {
-  const wrap = $('#presets');
-  for (const p of PRESETS) {
-    const b = document.createElement('button');
-    b.className = 'chip';
-    b.textContent = p.label;
-    b.addEventListener('click', () => {
-      $('#intent').value = p.intent;
-      runIntent(p.intent);
-    });
-    wrap.appendChild(b);
+  for (const [group, sel] of [['safe', '#presets-safe'], ['attack', '#presets-attack']]) {
+    const wrap = $(sel);
+    wrap.innerHTML = '';
+    for (const p of PRESETS.filter((x) => x.group === group)) {
+      const b = document.createElement('button');
+      b.className = group === 'attack' ? 'chip chip-attack' : 'chip';
+      b.textContent = presetLabel(p, getLang());
+      b.addEventListener('click', () => {
+        const intent = presetIntent(p, getLang());
+        $('#intent').value = intent;
+        runIntent(intent);
+      });
+      wrap.appendChild(b);
+    }
   }
 }
 
@@ -228,13 +280,14 @@ for (const radio of document.querySelectorAll('input[name="mode"]')) {
     mode = e.target.value;
     const note = $('#mode-note');
     if (mode === 'llm') {
-      note.textContent = '接続確認中…';
+      note.textContent = t('llm.checking');
+      note.className = 'mode-note';
       try {
         const h = await llmPlanner.health();
-        note.textContent = `✅ 接続OK: ${h.model ?? 'model'}（${h.device ?? 'cpu'}）`;
+        note.textContent = t('llm.ok', { m: h.model ?? 'model', d: h.device ?? 'cpu' });
         note.className = 'mode-note ok';
       } catch {
-        note.textContent = '⚠️ localhost:8000 に未接続。backend-rs か ai/planner_server.py を起動してください（未接続時はルールにフォールバック）';
+        note.textContent = t('llm.down');
         note.className = 'mode-note warn';
       }
     } else {
@@ -244,10 +297,37 @@ for (const radio of document.querySelectorAll('input[name="mode"]')) {
   });
 }
 
+// ---- 言語切替 -----------------------------------------------------------
+function markLangButtons() {
+  for (const b of document.querySelectorAll('.lang-switch button')) {
+    b.classList.toggle('active', b.dataset.lang === getLang());
+  }
+}
+for (const b of document.querySelectorAll('.lang-switch button')) {
+  b.addEventListener('click', () => setLang(b.dataset.lang));
+}
+onLangChange(() => {
+  applyDom();
+  markLangButtons();
+  buildPresets();
+  renderChipLabels();
+  renderVehicle();
+  renderDsl();
+  renderFrames();
+  renderSafety();
+  renderBus();
+  renderRta();
+});
+
+// ---- 起動 ---------------------------------------------------------------
+applyDom();
+markLangButtons();
 buildPresets();
+renderChipLabels();
 setSpeed(0);
 requestAnimationFrame(render);
 
 // 初回デモ: ウェルカム点灯を自動実行
-runIntent(PRESETS[0].intent);
-$('#intent').value = PRESETS[0].intent;
+const first = presetIntent(PRESETS[0], getLang());
+$('#intent').value = first;
+runIntent(first);

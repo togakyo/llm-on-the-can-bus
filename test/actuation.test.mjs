@@ -68,7 +68,7 @@ test('LLM未接続時はルールプランナーへグレースフル・フォ�
   service._planners.llm = { generate: async () => { throw new Error('connection refused'); } };
 
   const { program, source } = await service.runIntent('コンソールを緑でパルス', 'llm');
-  assert.ok(source.includes('フォールバック'));
+  assert.ok(source.includes('fallback'));
   assert.equal(program.status, PROGRAM_STATUS.COMPLETED);
 });
 

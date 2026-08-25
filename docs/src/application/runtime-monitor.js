@@ -23,10 +23,13 @@ import { VehicleState, PARKED_DEFAULT } from '../domain/vehicle.js';
 import { EVT } from '../domain/events.js';
 
 export class RuntimeAssuranceMonitor {
-  constructor({ bus, events, policy = POLICY }) {
+  // formatReasons: 審査理由({code,...})を1行の文字列にする関数（監査ログ用）。
+  // ドメインは言語を持たないので、文言化は合成ルートから注入する。
+  constructor({ bus, events, policy = POLICY, formatReasons = defaultFormatReasons }) {
     this._bus = bus;
     this._events = events;
     this._policy = policy;
+    this._formatReasons = formatReasons;
     this._vehicle = PARKED_DEFAULT;
     this._latched = new Map(); // canId -> 最後にECUへ流れたゾーン指令フレーム
     this.interventions = 0;
@@ -62,7 +65,7 @@ export class RuntimeAssuranceMonitor {
         const prev = this._vehicle;
         this._vehicle = next;
         this._events?.publish(EVT.VEHICLE_STATE_CHANGED, {
-          detail: `${prev.speedKmh}km/h(${prev.gearName()}) → ${next.speedKmh}km/h(${next.gearName()})`,
+          detail: `${prev.speedKmh}km/h(${prev.gearName()}) -> ${next.speedKmh}km/h(${next.gearName()})`,
         });
         this._reassure();
       }
@@ -101,12 +104,20 @@ export class RuntimeAssuranceMonitor {
   }
 
   _publishIntervention(phase, res) {
-    const zone = res.zoneId ? ZONE_BY_CANID[res.frame?.id]?.label ?? res.zoneId : 'global';
+    const zone = res.zoneId ? ZONE_BY_CANID[res.frame?.id]?.labelEn ?? res.zoneId : 'global';
     this._events?.publish(EVT.RUNTIME_INTERVENTION, {
       policyVersion: this._policy.version,
-      detail: `[${phase}] ${res.verdict.toUpperCase()} ${zone}: ${res.reasons.join(' / ')}`,
+      detail: `[${phase}] ${res.verdict.toUpperCase()} ${zone}: ${this._formatReasons(res.reasons)}`,
       verdict: res.verdict,
       phase,
     });
   }
+}
+
+// 既定の文言化: 依存を持たない最小実装（コードとパラメータをそのまま並べる）。
+// UI からは docs/src/i18n.js の formatReasonsEn を注入して読みやすくする。
+function defaultFormatReasons(reasons) {
+  return (reasons ?? [])
+    .map((r) => (typeof r === 'string' ? r : r.code))
+    .join(' / ');
 }

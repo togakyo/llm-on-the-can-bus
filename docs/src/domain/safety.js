@@ -32,6 +32,21 @@ export const POLICY = {
 
 export const VERDICT = { PASS: 'pass', CLAMP: 'clamp', REJECT: 'reject' };
 
+// 審査理由は「言語に依存しない構造データ」として返す: { code, ...params }。
+// 人間向けの文言化は表示層の責務（docs/src/i18n.js の formatReason）。
+// これによりドメインは翻訳を知らずに済み、UIは英日どちらにも描ける。
+export const REASON = {
+  OK: 'ok',
+  CHECKSUM: 'checksum_mismatch',
+  ID_NOT_ALLOWED: 'id_not_allowed',
+  FLASH_HZ_CAPPED: 'flash_hz_capped',
+  FORWARD_FLASH_DOWNGRADED: 'forward_flash_downgraded',
+  FORWARD_BRIGHTNESS_CAPPED: 'forward_brightness_capped',
+  RED_FLASH_DRIVING: 'red_flash_driving',
+  MASTER_BRIGHTNESS_CAPPED: 'master_brightness_capped',
+  DURATION_CAPPED: 'duration_capped',
+};
+
 // フレーム1枚を検査。clampされた場合は checksum を張り直した新フレームを返す。
 export function inspectFrame(frame, vehicle) {
   const reasons = [];
@@ -39,14 +54,14 @@ export function inspectFrame(frame, vehicle) {
 
   // (1) メッセージ完全性
   if (!verifyChecksum(frame)) {
-    return { verdict: VERDICT.REJECT, frame, reasons: ['チェックサム不一致（改ざん/破損の疑い）'] };
+    return { verdict: VERDICT.REJECT, frame, reasons: [{ code: REASON.CHECKSUM }] };
   }
 
   // (2) 送信ID allowlist（コンパイラで保証済みだが二重チェック=多層防御）
   if (!ALLOWED_TX_IDS.has(frame.id)) {
     return {
       verdict: VERDICT.REJECT, frame,
-      reasons: [`許可外ID ${idToHex(frame.id)} — 安全系/他ドメインへの送信は禁止`],
+      reasons: [{ code: REASON.ID_NOT_ALLOWED, id: idToHex(frame.id) }],
     };
   }
 
@@ -65,7 +80,7 @@ export function inspectFrame(frame, vehicle) {
   // 常時: フラッシュ/パルスの周波数上限（光過敏対策）
   const hzCap = driving ? POLICY.maxFlashHzDriving : POLICY.maxFlashHz;
   if ((effect === EFFECT.FLASH || effect === EFFECT.PULSE) && speedToHz(speed) > hzCap) {
-    reasons.push(`点滅周波数 ${speedToHz(speed)}Hz → ${hzCap}Hz に制限`);
+    reasons.push({ code: REASON.FLASH_HZ_CAPPED, from: speedToHz(speed), to: hzCap });
     speed = hzToSpeed(hzCap);
     changed = true;
   }
@@ -73,14 +88,14 @@ export function inspectFrame(frame, vehicle) {
   if (driving) {
     // (a) 前方視野ゾーンの点滅は注意散漫 → 呼吸(BREATHE)へ格下げ
     if (zone.forwardField && effect === EFFECT.FLASH) {
-      reasons.push(`走行中の${zone.label}の点滅は禁止 → 呼吸へ変更`);
+      reasons.push({ code: REASON.FORWARD_FLASH_DOWNGRADED, zoneId: zone.id });
       effect = EFFECT.BREATHE;
       changed = true;
     }
     // (b) 前方視野ゾーンの輝度上限（グレア対策）
     const maxB = Math.round(POLICY.forwardFieldMaxBrightnessDriving * 255);
     if (zone.forwardField && brightness > maxB) {
-      reasons.push(`走行中の${zone.label}輝度 ${pct(brightness)} → ${pct(maxB)} に制限`);
+      reasons.push({ code: REASON.FORWARD_BRIGHTNESS_CAPPED, zoneId: zone.id, from: pct(brightness), to: pct(maxB) });
       brightness = maxB;
       changed = true;
     }
@@ -88,13 +103,13 @@ export function inspectFrame(frame, vehicle) {
     if (isRed(r, g, b) && effect === EFFECT.FLASH) {
       return {
         verdict: VERDICT.REJECT, frame, zoneId: zone.id,
-        reasons: [`走行中の赤色点滅は警告表示と誤認するため禁止（${zone.label}）`],
+        reasons: [{ code: REASON.RED_FLASH_DRIVING, zoneId: zone.id }],
       };
     }
   }
 
   if (!changed) {
-    return { verdict: VERDICT.PASS, frame, zoneId: zone.id, reasons: ['適合'] };
+    return { verdict: VERDICT.PASS, frame, zoneId: zone.id, reasons: [{ code: REASON.OK }] };
   }
   const clamped = encodeZoneFrame({
     zoneId: zone.id, r, g, b, brightness, effect, speed, counter,
@@ -109,12 +124,12 @@ function inspectGlobal(frame, driving, reasons) {
   if (driving) {
     const cap = Math.round(POLICY.masterMaxBrightnessDriving * 255);
     if (master > cap) {
-      reasons.push(`走行中マスター輝度 ${pct(master)} → ${pct(cap)} に制限`);
+      reasons.push({ code: REASON.MASTER_BRIGHTNESS_CAPPED, from: pct(master), to: pct(cap) });
       const clamped = encodeGlobalFrame({ cmd, masterBrightness: cap, counter });
       return { verdict: VERDICT.CLAMP, frame: clamped, original: frame, reasons };
     }
   }
-  return { verdict: VERDICT.PASS, frame, reasons: ['適合'] };
+  return { verdict: VERDICT.PASS, frame, reasons: [{ code: REASON.OK }] };
 }
 
 // プログラム全体（コンパイル済み）を審査。承認されたステップのみ返す。
@@ -133,7 +148,7 @@ export function reviewProgram(compiled, vehicle) {
   let durationMs = compiled.durationMs ?? POLICY.maxDurationMs;
   const watchdog = [];
   if (durationMs > POLICY.maxDurationMs) {
-    watchdog.push(`継続時間 ${durationMs}ms → ${POLICY.maxDurationMs}ms に制限`);
+    watchdog.push({ code: REASON.DURATION_CAPPED, from: durationMs, to: POLICY.maxDurationMs });
     durationMs = POLICY.maxDurationMs;
   }
   // 終了時にOFFへ落とす指定なら、末尾に全消灯を必ず追加（フェイルセーフ）

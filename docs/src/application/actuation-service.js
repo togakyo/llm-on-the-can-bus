@@ -36,26 +36,26 @@ export class ActuationService {
       try {
         rawDsl = await this._planners.llm.generate(intent);
         const llm = this._planners.llm;
-        source = `ローカルAI · ${llm.lastModel ?? 'HF model'}${llm.lastSource === 'fallback' ? '（サーバ側fallback）' : ''}`;
+        source = `local AI · ${llm.lastModel ?? 'HF model'}${llm.lastSource === 'fallback' ? ' (server-side fallback)' : ''}`;
       } catch {
         rawDsl = await this._planners.heuristic.generate(intent);
-        source = 'ルール（ローカルAI未接続のためフォールバック）';
+        source = 'rule-based (fallback — local AI unreachable)';
       }
     } else {
       rawDsl = await this._planners.heuristic.generate(intent);
-      source = 'ルール（オフライン）';
+      source = 'rule-based (offline)';
     }
 
     // 集約の生成（腐敗防止層 normalizeDsl を通過）
     const program = LightingProgram.fromUntrusted({ intent, rawDsl, source });
     this._events.publish(EVT.PROGRAM_GENERATED, {
-      programId: program.id, detail: `「${program.dsl.title}」 生成元: ${source}`,
+      programId: program.id, detail: `"${program.dsl.title}" via ${source}`,
     });
 
     // ③ 信頼コンパイラ
     program.markCompiled(compile(program.dsl));
     this._events.publish(EVT.PROGRAM_COMPILED, {
-      programId: program.id, detail: `${program.compiled.steps.length} フレームへコンパイル`,
+      programId: program.id, detail: `compiled to ${program.compiled.steps.length} CAN frames`,
     });
 
     // ④ 安全審査（車両状態はモニタがバスから センシングした最新値）
@@ -65,7 +65,7 @@ export class ActuationService {
       programId: program.id,
       policyVersion: this._policy.version,
       detail: `PASS ${review.summary.pass} / CLAMP ${review.summary.clamp} / REJECT ${review.summary.reject}` +
-        `（${review.summary.driving ? '走行中' : '停車中'}ポリシー）`,
+        ` (${review.summary.driving ? 'driving' : 'parked'} policy)`,
     });
 
     // ⑤ 承認ステップのみ、TXゲート（monitor.send）経由でスケジュール送出
@@ -73,7 +73,7 @@ export class ActuationService {
       this._replaceActive(program);
       program.markActive();
       this._events.publish(EVT.PROGRAM_DISPATCHED, {
-        programId: program.id, detail: `${review.approvedSteps.length} フレームを送出開始`,
+        programId: program.id, detail: `dispatching ${review.approvedSteps.length} approved frames`,
       });
       this._cancel = this._scheduler(this._monitor, review.approvedSteps, 'safety', () => {
         program.markCompleted();
@@ -81,7 +81,7 @@ export class ActuationService {
       });
     } else {
       this._events.publish(EVT.PROGRAM_ABORTED, {
-        programId: program.id, detail: '全フレームが安全審査で破棄されたため実行せず',
+        programId: program.id, detail: 'not executed — every frame was rejected by the safety review',
       });
     }
 
@@ -93,10 +93,10 @@ export class ActuationService {
     this._replaceActive(null, 'E-STOP');
     const prog = buildEstopProgram();
     for (const s of prog.steps) this._bus.send(s.frame, 'estop');
-    this._events.publish(EVT.ESTOP_TRIGGERED, { detail: '全ゾーン消灯・フェイルセーフ状態へ' });
+    this._events.publish(EVT.ESTOP_TRIGGERED, { detail: 'all zones off — fail-safe state' });
   }
 
-  _replaceActive(next, reason = '新しいプログラムへ差し替え') {
+  _replaceActive(next, reason = 'replaced by a newer program') {
     if (this._cancel) {
       this._cancel();
       this._cancel = null;

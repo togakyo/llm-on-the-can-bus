@@ -20,6 +20,7 @@ import { DomainEventBus } from '../docs/src/domain/events.js';
 import { SafetyAuditLog } from '../docs/src/domain/audit.js';
 import { encodeVehicleState } from '../docs/src/domain/signals.js';
 import { POLICY } from '../docs/src/domain/safety.js';
+import { formatReasonsEn } from '../docs/src/i18n.js';
 
 import {
   welcomeMessage, frameMessage, zonesMessage, eventMessage,
@@ -34,7 +35,8 @@ const bus = new VirtualCanBus();
 const events = new DomainEventBus();
 const audit = new SafetyAuditLog();
 audit.attach(events);
-const monitor = new RuntimeAssuranceMonitor({ bus, events });
+// ブリッジのログ/HUDは英語固定（表示ロケールを持たないヘッドレス環境のため）
+const monitor = new RuntimeAssuranceMonitor({ bus, events, formatReasons: formatReasonsEn });
 const ecu = new AmbientEcu();
 bus.subscribe((frame) => ecu.ingest(frame, performance.now()));
 const service = new ActuationService({
@@ -110,6 +112,6 @@ setInterval(() => {
 sock.bind(PORT, () => {
   // 初期状態: 停車中（Unity 接続後は VehicleStateReporter が上書きしてくる）
   bus.send(encodeVehicleState({ speedKmh: 0 }), 'vehicle');
-  console.log(`CAN-AI Unity bridge listening on udp://0.0.0.0:${PORT}`);
+  console.log(`LLM-on-the-CAN-bus Unity bridge listening on udp://0.0.0.0:${PORT}`);
   console.log(`safety envelope: v${POLICY.version} — Unity 側の手順は unity/README.md 参照`);
 });
