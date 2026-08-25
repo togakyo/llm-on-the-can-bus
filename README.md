@@ -13,12 +13,18 @@
 
 </div>
 
-![A calm program lights the cabin while parked; once driving at 60 km/h, a "red fast flash" intent is REJECTED by the safety supervisor and never reaches the bus](docs/assets/demo-unity.gif)
+![Parked, a "flash everything red, fast" program passes review and lights the whole cabin. The car starts driving and the run-time monitor kills it mid-flight. Asked again at 60 km/h, it is rejected outright and never reaches the bus](docs/assets/demo.gif)
 
-You type an intent. An AI writes a brand-new lighting control program for it. A trusted
-supervisor inspects **every single CAN frame** before it reaches the bus, and throws away
-the ones that are unsafe *for the car's situation right now*. Above: the same intent that
-lights up beautifully while parked gets **REJECTED** at 60 km/h.
+*Three things happen above, and none of them are scripted — that is the live demo:*
+
+1. **Parked**, "flash everything red, fast" passes review. All 7 zones light up. `PASS 7`
+2. **The car starts moving.** The program was already approved and already on the bus — so the
+   run-time monitor re-inspects what is latched in the ECU and kills it mid-flight
+   (`RTA intervention` ×6 on the bus). The cabin goes dark as the speed climbs.
+3. **Asked again at 60 km/h**, the same intent never reaches the bus at all. `REJECT 6`
+
+Only the dashboard survives, dimmed and downgraded from flashing to breathing — because it is the
+one zone in the driver's forward field of view.
 
 ## Try to break it — 30 seconds, no install
 
@@ -115,6 +121,8 @@ npm run bridge   # headless trusted host + UDP bridge on :9200
 Drop [`unity/Scripts/`](unity/Scripts) into a Unity 2021.3+ project and you can watch the
 supervisor intervene from the driver's seat — Unity is just another untrusted display adapter.
 Setup: [`unity/README.md`](unity/README.md).
+
+![The same pipeline driven from a Unity in-cabin scene, with a debug HUD showing the audit trail](docs/assets/demo-unity.gif)
 
 ## Docs
 
