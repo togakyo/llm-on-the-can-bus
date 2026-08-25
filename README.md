@@ -13,18 +13,20 @@
 
 </div>
 
-![Parked, a "flash everything red, fast" program passes review and lights the whole cabin. The car starts driving and the run-time monitor kills it mid-flight. Asked again at 60 km/h, it is rejected outright and never reaches the bus](docs/assets/demo.gif)
+![A calm cyan program lights the parked cabin and passes review. A red flashing program is allowed while parked, then killed mid-flight by the run-time monitor as the car pulls away, and refused outright when requested again at 60 km/h](docs/assets/demo.gif)
 
-*Three things happen above, and none of them are scripted — that is the live demo:*
+*Four beats above, none of them scripted — that is the live demo running:*
 
-1. **Parked**, "flash everything red, fast" passes review. All 7 zones light up. `PASS 7`
-2. **The car starts moving.** The program was already approved and already on the bus — so the
-   run-time monitor re-inspects what is latched in the ECU and kills it mid-flight
-   (`RTA intervention` ×6 on the bus). The cabin goes dark as the speed climbs.
-3. **Asked again at 60 km/h**, the same intent never reaches the bus at all. `REJECT 6`
+1. **Parked.** A calm cyan program passes review and lights the footwells and doors. `PASS 4`
+2. **Still parked**, "flash everything red and fast" is *allowed*. The rule is contextual,
+   not a blanket ban. `PASS 7`
+3. **The car pulls away.** That program was already approved and already on the bus — so the
+   run-time monitor re-inspects what is latched in the ECU and kills it **mid-flight**.
+   `RTA intervention ×6`
+4. **At 60 km/h the same request is refused outright** and never reaches the bus. `REJECT 6`
 
-Only the dashboard survives, dimmed and downgraded from flashing to breathing — because it is the
-one zone in the driver's forward field of view.
+Only the dashboard survives, dimmed and downgraded from flashing to breathing — it is the one
+zone in the driver's forward field of view, so it gets clamped rather than cut.
 
 ## Try to break it — 30 seconds, no install
 
