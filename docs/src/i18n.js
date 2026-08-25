@@ -56,6 +56,9 @@ const UI = {
   'stage.title':    ['Cabin ambient lighting', '車内アンビエント照明'],
   'stage.vehicle':  ['Vehicle state', '車両状態'],
   'stage.estop':    ['■ E-STOP (all off)', '■ E-STOP（全消灯）'],
+  'cam.overview':   ['Overview', '俯瞰'],
+  'cam.driver':     ["Driver's seat", '運転席'],
+  'view.hint3d':    ['drag to look around · scroll to zoom', 'ドラッグで視点移動 · ホイールで拡大'],
   'zone.footL':     ['Footwell L', '足元L'],
   'zone.footR':     ['Footwell R', '足元R'],
 

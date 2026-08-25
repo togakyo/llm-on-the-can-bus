@@ -38,7 +38,12 @@ active → completed/aborted` — and illegal transitions throw rather than sile
 - `planners.js` — `HeuristicPlanner` (offline rules) and `LlmPlanner` (HTTP `:8000`)
 - `ecu.js` — ambient-lighting ECU simulator
 
-The UI (`app.js`, and the Unity client) is *also* just an adapter: an untrusted display.
+- `cabin3d.js` — WebGL 3D cabin view (no libraries, no build step)
+
+The UI (`app.js`, the 3D view, and the Unity client) is *also* just an adapter: an untrusted
+display. `cabin3d.js` is the clearest demonstration of that: it reads nothing but
+`ecu.effectiveColor(zoneId, now)`, shares its geometry with `unity/Scripts/CabinMockRig.cs`, and
+switching 2D↔3D cannot affect a single safety verdict.
 
 ## Run-time assurance (Simplex)
 
@@ -119,7 +124,7 @@ docs/                       GitHub Pages content (served as-is, no build)
     i18n.js                 presentation-layer EN/JA dictionary + reason formatting
     domain/                 pure domain layer (see table above)
     application/            actuation-service.js, runtime-monitor.js
-    infrastructure/         can.js, planners.js, ecu.js
+    infrastructure/         can.js, planners.js, ecu.js, cabin3d.js (WebGL cabin)
     app.js                  composition root + UI wiring + SVG render loop
 backend-rs/                 Rust backend (default) — candle-native inference
 ai/                         Python backend (alternative) — transformers/PyTorch

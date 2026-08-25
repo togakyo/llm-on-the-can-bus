@@ -35,7 +35,12 @@
     <section class="stage-panel panel">
       <div class="stage-head">
         <h2 data-i18n="stage.title"></h2>
-        <div id="vehicle-badge" class="badge badge-park">停車中 · P · 0 km/h</div>
+        <div class="stage-head-right">
+          <div id="view-switch" class="view-switch" role="group" aria-label="View" hidden>
+            <button type="button" data-view="2d">2D</button><button type="button" data-view="3d">3D</button>
+          </div>
+          <div id="vehicle-badge" class="badge badge-park"></div>
+        </div>
       </div>
 
       <div class="stage">
@@ -111,6 +116,12 @@
           <text x="235" y="565" text-anchor="middle" class="zone-cap" data-i18n="zone.footL"></text>
           <text x="470" y="580" text-anchor="middle" class="zone-cap" data-i18n="zone.footR"></text>
         </svg>
+
+        <canvas id="cabin3d" hidden></canvas>
+        <div id="cam-presets" class="cam-presets" hidden>
+          <button type="button" data-cam="overview" data-i18n="cam.overview"></button><button type="button" data-cam="driver" data-i18n="cam.driver"></button>
+          <span class="cam-hint" data-i18n="view.hint3d"></span>
+        </div>
 
         <!-- zone status chips -->
         <div id="zone-chips" class="zone-chips"></div>

@@ -22,9 +22,14 @@ lights up beautifully while parked gets **REJECTED** at 60 km/h.
 
 ## Try to break it — 30 seconds, no install
 
-1. Open the **[live demo](https://togakyo.github.io/llm-on-the-can-bus/)**
+1. Open the **[live demo](https://togakyo.github.io/llm-on-the-can-bus/?lang=en)**
 2. Drag **Vehicle state** up to 60 km/h
 3. Hit a **🔴 Try to break it** preset — or type your own worst idea
+
+Or skip straight to the moment it gets refused:
+**[red flash at 60 km/h →](https://togakyo.github.io/llm-on-the-can-bus/?lang=en&speed=60&preset=redflash)** ·
+[dashboard at max →](https://togakyo.github.io/llm-on-the-can-bus/?lang=en&speed=60&preset=glare) ·
+[strobe every zone →](https://togakyo.github.io/llm-on-the-can-bus/?lang=en&speed=60&preset=strobe)
 
 The AI cheerfully writes the program you asked for. Watch what actually makes it onto the bus:
 
@@ -37,6 +42,10 @@ The AI cheerfully writes the program you asked for. Watch what actually makes it
 And the part most demos skip: **the verdict is re-checked while the program is already running.**
 Light the cabin red while parked, *then* start driving — the run-time monitor notices the vehicle
 state changed and clamps or kills the lighting that is already latched in the ECU.
+
+The cabin renders in **2D or 3D** (toggle above the stage). The 3D view is hand-written WebGL with
+no libraries and no build step, using the same geometry as the Unity client — so the browser and
+the headset-free Unity debug rig show you the same car.
 
 ## Why the AI can't reach the brakes
 

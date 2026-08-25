@@ -15,6 +15,7 @@
 import { VirtualCanBus, scheduleProgram } from './infrastructure/can.js';
 import { HeuristicPlanner, LlmPlanner, PRESETS, presetLabel, presetIntent } from './infrastructure/planners.js';
 import { AmbientEcu } from './infrastructure/ecu.js';
+import { Cabin3D } from './infrastructure/cabin3d.js';
 import { DomainEventBus, EVT } from './domain/events.js';
 import { SafetyAuditLog } from './domain/audit.js';
 import { ActuationService } from './application/actuation-service.js';
@@ -231,6 +232,9 @@ function renderChipLabels() {
 
 function render() {
   const now = performance.now();
+  if (cabin3d && viewMode === '3d') {
+    cabin3d.render(ecu, now);
+  }
   for (const z of ZONES) {
     const { fill, level } = ecu.cssColor(z.id, now);
     for (const el of zoneEls[z.id]) {
@@ -297,6 +301,50 @@ for (const radio of document.querySelectorAll('input[name="mode"]')) {
   });
 }
 
+// ---- 2D / 3D ビュー切替 --------------------------------------------------
+// 3Dは SVG とまったく同じ「表示アダプタ」なので、切り替えても審査やバスには一切影響しない。
+// WebGL が使えない環境では 3D ボタン自体を出さず、2D のまま動かす。
+const VIEW_KEY = 'canai.view';
+let viewMode = '2d';
+const cabin3d = Cabin3D.create($('#cabin3d'));
+
+function applyView(next) {
+  if (next === '3d' && !cabin3d) return;
+  viewMode = next;
+  const on3d = next === '3d';
+  // #cabin は SVGElement で、HTML の hidden プロパティを実装しない → display で消す
+  $('#cabin').style.display = on3d ? 'none' : '';
+  $('#cabin3d').hidden = !on3d;
+  $('#cam-presets').hidden = !on3d;
+  for (const b of document.querySelectorAll('#view-switch button')) {
+    b.classList.toggle('active', b.dataset.view === next);
+  }
+  try { localStorage.setItem(VIEW_KEY, next); } catch { /* non-fatal */ }
+}
+
+function applyCam(name) {
+  cabin3d?.setView(name);
+  for (const b of document.querySelectorAll('#cam-presets button')) {
+    b.classList.toggle('active', b.dataset.cam === name);
+  }
+}
+
+if (cabin3d) {
+  $('#view-switch').hidden = false;
+  for (const b of document.querySelectorAll('#view-switch button')) {
+    b.addEventListener('click', () => applyView(b.dataset.view));
+  }
+  for (const b of document.querySelectorAll('#cam-presets button')) {
+    b.addEventListener('click', () => applyCam(b.dataset.cam));
+  }
+  let saved = null;
+  try { saved = localStorage.getItem(VIEW_KEY); } catch { /* non-fatal */ }
+  applyCam('overview');
+  applyView(saved === '2d' ? '2d' : '3d'); // 既定は3D（デモGIFと同じ絵を最初に見せる）
+} else {
+  applyView('2d');
+}
+
 // ---- 言語切替 -----------------------------------------------------------
 function markLangButtons() {
   for (const b of document.querySelectorAll('.lang-switch button')) {
@@ -327,7 +375,20 @@ renderChipLabels();
 setSpeed(0);
 requestAnimationFrame(render);
 
-// 初回デモ: ウェルカム点灯を自動実行
-const first = presetIntent(PRESETS[0], getLang());
+// ---- 起動時のディープリンク --------------------------------------------
+// ?speed=60&preset=redflash のように指定すると、その車両状態のままプリセットを
+// 実行した状態で開く。README から「REJECTされる瞬間」へ直接リンクするために使う。
+// 例: ?lang=en&speed=60&preset=redflash
+const params = new URLSearchParams(location.search);
+
+const speedParam = Number(params.get('speed'));
+if (Number.isFinite(speedParam) && speedParam > 0) {
+  const kmh = Math.max(0, Math.min(120, Math.round(speedParam / 5) * 5));
+  $('#speed').value = String(kmh);
+  setSpeed(kmh);
+}
+
+const preset = PRESETS.find((p) => p.key === params.get('preset')) ?? PRESETS[0];
+const first = presetIntent(preset, getLang());
 $('#intent').value = first;
 runIntent(first);
