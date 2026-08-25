@@ -1,7 +1,7 @@
 {
-  "name": "can-ai-actuator-lab",
+  "name": "llm-on-the-can-bus",
   "version": "0.1.0",
-  "description": "AIが車載CAN制御プログラムを生成し、安全審査を通してアンビエント照明アクチュエータを制御するデモ",
+  "description": "An LLM writes the car's CAN control program from scratch on every request — and a trusted safety supervisor makes sure it still can't do anything dangerous.",
   "type": "module",
   "license": "MIT",
   "private": true,
